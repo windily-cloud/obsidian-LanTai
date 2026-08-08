@@ -20,13 +20,13 @@ import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
 import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
-export interface BuildLanTaiSettingDefinitionsParams {
+export type LinkStyle = 'markdown' | 'wiki';
+
+interface BuildLanTaiSettingDefinitionsParams {
 	buildSectionContext(): S3SectionContext;
 	readonly pathResolver: AttachmentPathResolver;
 	readonly settings: PluginSettings;
 }
-
-export type LinkStyle = 'markdown' | 'wiki';
 
 type PersistPluginSettings = () => Promise<void>;
 
