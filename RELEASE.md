@@ -44,7 +44,7 @@ By default the script will:
 5. Bump versions in `package.json` (and lockfiles if present), `manifest.json`, and `versions.json` (`version` → `minAppVersion`)
 6. Generate or update `CHANGELOG.md` from commits and open it for review (unless `--no-changelog-editing`)
 7. Commit (`chore: release <version>`), annotated tag, and push
-8. Create a GitHub Release (`gh release create`) titled `v<version>`, attach plugin build outputs under `dist/build/` — **`main.js`**, **`manifest.json`**, and **`styles.css`** when present. Demo-vault archives are **not** attached (Obsidian only downloads those three assets from community releases).
+8. Create a GitHub Release (`gh release create`) titled `v<version>`, attach plugin build outputs under `dist/` — **`main.js`**, **`manifest.json`**, and **`styles.css`** when present. Demo-vault archives are **not** attached (Obsidian only downloads those three assets from community releases).
 9. Mark the release as a prerelease when the version is a semver prerelease (e.g. `1.2.4-beta.0`)
 
 Useful flags (each feature is **on** by default unless noted; `--no-*` turns it off):

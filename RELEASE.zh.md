@@ -44,7 +44,7 @@ npm run version -- 0.2.0 --no-release
 5. 更新 `package.json`（及存在的 lockfile）、`manifest.json`、`versions.json`（`version` → `minAppVersion`）
 6. 根据提交生成/更新 `CHANGELOG.md`，并打开编辑器审阅（除非 `--no-changelog-editing`）
 7. 提交（`chore: release <version>`）、打 annotated tag 并推送
-8. 用 `gh release create` 创建 GitHub Release（标题 `v<version>`），上传插件构建目录下的产物（通常为 `dist/build/` 中的 **`main.js`**、**`manifest.json`**、**`styles.css`**）。**不会**附带 demo-vault 压缩包（Obsidian 社区安装只下载上述三件套）。
+8. 用 `gh release create` 创建 GitHub Release（标题 `v<version>`），上传插件构建目录下的产物（通常为 `dist/` 中的 **`main.js`**、**`manifest.json`**、**`styles.css`**）。**不会**附带 demo-vault 压缩包（Obsidian 社区安装只下载上述三件套）。
 9. 若版本为 semver 预发布（如 `1.2.4-beta.0`），则标记为 prerelease
 
 常用开关（功能默认开启，`--no-*` 关闭；本仓库对 demo-vault 有例外）：

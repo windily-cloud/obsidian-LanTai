@@ -6,6 +6,8 @@ import {
 	updateVersion
 } from 'obsidian-dev-utils/script-utils/version';
 
+import { useFlatDistBuildOutput } from './use-flat-dist-build-output.ts';
+
 /*
  * This repo is a template. Releasing the template itself is disabled, but the guard below is keyed to the
  * template's own plugin id: the moment you fork this repo and set your own id in manifest.json it becomes
@@ -16,6 +18,8 @@ const TEMPLATE_PLUGIN_ID = 'sample-plugin-extended';
 interface Manifest {
 	id: string;
 }
+
+useFlatDistBuildOutput();
 
 await wrapCliTask(async () => {
 	const manifest = await readJson<Manifest>('manifest.json');
