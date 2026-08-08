@@ -1,0 +1,37 @@
+# vscode
+.vscode
+
+# Cursor / local agent tooling
+.cursor
+.cursorignore
+AGENTS.md
+CONTEXT.md
+.claude/
+
+# Intellij
+*.iml
+.idea
+
+# npm
+node_modules
+reference
+docs
+.superpowers
+demo-vault
+# Don't include the compiled main.js file in the repo.
+# They should be uploaded to GitHub releases instead.
+main.js
+
+# Exclude sourcemaps
+*.map
+
+# obsidian
+data.json
+
+# Exclude macOS Finder (System Explorer) View States
+.DS_Store
+
+dist
+.env
+/tsconfig.tsbuildinfo
+coverage

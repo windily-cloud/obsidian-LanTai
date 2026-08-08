@@ -1,0 +1,12 @@
+{
+	"extends": "./node_modules/obsidian-dev-utils/dist/templates/dprint.json",
+	"indentWidth": 4,
+	"useTabs": true,
+	"excludes": [
+		"dist",
+		"**/node_modules",
+		"**/*-lock.json",
+		"**/*.md",
+		"demo-vault"
+	]
+}
