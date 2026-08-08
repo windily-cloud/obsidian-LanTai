@@ -28,10 +28,11 @@ import { ImageContextMenuController } from './ui/image-context-menu-controller.t
 import { registerStorageGallery } from './ui/storage-gallery-registration.ts';
 
 export class Plugin extends PluginBase {
-	private pluginSettings = new PluginSettings();
+	/** Bound by Obsidian declarative settings (`getControlValue` / `setControlValue`). */
+	public override settings = new PluginSettings();
 
 	protected override async onloadImpl(): Promise<void> {
-		this.pluginSettings = Object.assign(new PluginSettings(), await this.loadData());
+		this.settings = Object.assign(new PluginSettings(), await this.loadData());
 
 		const parser = new ImageLinkParser();
 		const linkService = new ImageLinkService(parser, new ImageLinkFormatter());
@@ -64,7 +65,7 @@ export class Plugin extends PluginBase {
 			parser,
 			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
 			saveDialog: new ObsidianSaveDialog(),
-			settings: this.pluginSettings,
+			settings: this.settings,
 			uploadAction: new UploadAction(pathResolver, linkService),
 			vault
 		});
@@ -73,7 +74,7 @@ export class Plugin extends PluginBase {
 			new SaveAttachmentPatchComponent({
 				app: this.app,
 				pathResolver,
-				settings: this.pluginSettings
+				settings: this.settings
 			})
 		);
 
@@ -82,8 +83,8 @@ export class Plugin extends PluginBase {
 				app: this.app,
 				pathResolver,
 				plugin: this,
-				saveSettings: async (): Promise<void> => this.saveData(this.pluginSettings),
-				settings: this.pluginSettings
+				saveSettings: async (): Promise<void> => this.saveData(this.settings),
+				settings: this.settings
 			})
 		);
 		new CommandRegistrar({
@@ -125,8 +126,8 @@ export class Plugin extends PluginBase {
 			findReferences: new RemoteImageReferenceFinder({ app: this.app, parser }),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
 			plugin: this,
-			saveSettings: async (): Promise<void> => this.saveData(this.pluginSettings),
-			settings: this.pluginSettings
+			saveSettings: async (): Promise<void> => this.saveData(this.settings),
+			settings: this.settings
 		});
 	}
 }

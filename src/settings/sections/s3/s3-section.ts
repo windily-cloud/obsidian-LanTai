@@ -19,10 +19,9 @@ import {
 	attachTokenInfoButton,
 	previewContext
 } from '../../helpers/path-template-ui.ts';
-import { addSectionHeading } from '../../helpers/section-heading.ts';
 import { StorageProviderFields } from '../../helpers/storage-provider-fields.ts';
 
-interface S3SectionContext extends SettingsSectionContext {
+export interface S3SectionContext extends SettingsSectionContext {
 	applyProfileDraft(profileId: string): void;
 	readonly expandedProfileIds: Set<string>;
 	getProfileDraft(profile: StorageProfile): StorageProfile;
@@ -31,9 +30,7 @@ interface S3SectionContext extends SettingsSectionContext {
 	toggleProfileExpanded(profileId: string): void;
 }
 
-export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext): void {
-	addSectionHeading(containerEl, t('settings.s3'), 'cloud');
-
+export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionContext): void {
 	const profiles = ctx.registry.list();
 	new Setting(containerEl)
 		.setName(t('settings.s3Profiles'))
@@ -72,18 +69,6 @@ export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext
 			displayProfileCard(containerEl, ctx, profile);
 		}
 	}
-
-	new Setting(containerEl)
-		.setName(t('settings.deleteSourceAfterUpload'))
-		.setDesc(t('settings.deleteSourceAfterUploadDesc'))
-		.addToggle((toggle) => {
-			toggle
-				.setValue(ctx.settings.deleteSourceAfterUpload)
-				.onChange((value) => {
-					ctx.settings.deleteSourceAfterUpload = value;
-					ctx.persist();
-				});
-		});
 }
 
 function createProfile(): StorageProfile {

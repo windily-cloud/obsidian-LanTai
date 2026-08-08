@@ -44,10 +44,10 @@ By default the script will:
 5. Bump versions in `package.json` (and lockfiles if present), `manifest.json`, and `versions.json` (`version` → `minAppVersion`)
 6. Generate or update `CHANGELOG.md` from commits and open it for review (unless `--no-changelog-editing`)
 7. Commit (`chore: release <version>`), annotated tag, and push
-8. Create a GitHub Release (`gh release create`) titled `v<version>`, attach everything under the plugin build output folder (typically `dist/build/`, e.g. `main.js`, `manifest.json`, `styles.css` when present), and optionally a demo-vault archive
+8. Create a GitHub Release (`gh release create`) titled `v<version>`, attach plugin build outputs under `dist/build/` — **`main.js`**, **`manifest.json`**, and **`styles.css`** when present. Demo-vault archives are **not** attached (Obsidian only downloads those three assets from community releases).
 9. Mark the release as a prerelease when the version is a semver prerelease (e.g. `1.2.4-beta.0`)
 
-Useful flags (each feature is **on** by default; `--no-*` turns it off):
+Useful flags (each feature is **on** by default unless noted; `--no-*` turns it off):
 
 | Flag | Effect |
 |------|--------|
@@ -55,8 +55,12 @@ Useful flags (each feature is **on** by default; `--no-*` turns it off):
 | `--no-checks` | Skip clean-tree / format / spellcheck / lint / tests (build still runs unless `--no-build`) |
 | `--no-changelog-editing` | Write changelog without opening an editor |
 | `--no-commit-verification` | Pass `--no-verify` on the release commit |
-| `--no-demo-vault` | Do not archive `demo-vault/` as a release asset |
+| `--no-demo-vault` | No-op in this repo: demo-vault archiving is always off (see `scripts/version.ts`) |
 | `--no-release` | Do all local steps but skip push and GitHub Release |
+
+## Community plugin review notes
+
+LanTai is `isDesktopOnly: true`. Obsidian’s automated review may warn about Node `fs` / `child_process`, clipboard access, and vault enumeration. Those are required for desktop image workflows (system clipboard, reveal-in-folder, open-with-default-app, and “still referenced?” checks across notes). Treat them as expected for this plugin, not as defects to remove.
 
 ## After publish
 

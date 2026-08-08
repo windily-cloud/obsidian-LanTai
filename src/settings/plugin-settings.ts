@@ -1,18 +1,31 @@
 import type {
 	App,
-	Plugin
+	Plugin,
+	Setting,
+	SettingDefinitionItem
 } from 'obsidian';
 
 import { PluginSettingTab } from 'obsidian';
 
 import type { AttachmentPathResolver } from '../path/attachment-path-resolver.ts';
+import type { S3SectionContext } from './sections/s3/s3-section.ts';
 import type { StorageProfile } from './sections/s3/storage-profile.ts';
 
+import { t } from '../i18n/index.ts';
+import {
+	attachTokenInfoButton,
+	previewContext
+} from './helpers/path-template-ui.ts';
 import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
-import { displayGeneralSection } from './sections/general-section.ts';
-import { displayS3Section } from './sections/s3/s3-section.ts';
+import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
+export interface BuildLanTaiSettingDefinitionsParams {
+	buildSectionContext(): S3SectionContext;
+	readonly pathResolver: AttachmentPathResolver;
+	readonly settings: PluginSettings;
+}
+
 export type LinkStyle = 'markdown' | 'wiki';
 
 type PersistPluginSettings = () => Promise<void>;
@@ -52,8 +65,39 @@ export class PluginSettingsTab extends PluginSettingTab {
 		this.settings = params.settings;
 	}
 
-	public override display(): void {
-		this.renderSettings();
+	public override getControlValue(key: string): unknown {
+		return this.settings[key as keyof PluginSettings];
+	}
+
+	public override getSettingDefinitions(): SettingDefinitionItem[] {
+		return buildLanTaiSettingDefinitions({
+			buildSectionContext: (): S3SectionContext => this.buildSectionContext(),
+			pathResolver: this.pathResolver,
+			settings: this.settings
+		});
+	}
+
+	public override async setControlValue(key: string, value: unknown): Promise<void> {
+		switch (key) {
+			case 'attachmentBase':
+				this.settings.attachmentBase = value as AttachmentBase;
+				break;
+			case 'deleteSourceAfterUpload':
+				this.settings.deleteSourceAfterUpload = Boolean(value);
+				break;
+			case 'linkStyle':
+				this.settings.linkStyle = value as LinkStyle;
+				break;
+			case 'localPathTemplate':
+				this.settings.localPathTemplate = String(value);
+				break;
+			default:
+				return;
+		}
+		await this.saveSettings();
+		if (key === 'attachmentBase') {
+			this.update();
+		}
 	}
 
 	private applyProfileDraft(profileId: string): void {
@@ -64,6 +108,33 @@ export class PluginSettingsTab extends PluginSettingTab {
 		}
 		Object.assign(profile, cloneProfile(draft));
 		this.profileDrafts.set(profileId, cloneProfile(profile));
+	}
+
+	private buildSectionContext(): S3SectionContext {
+		return {
+			app: this.app,
+			applyProfileDraft: (profileId: string): void => {
+				this.applyProfileDraft(profileId);
+			},
+			expandedProfileIds: this.expandedProfileIds,
+			getProfileDraft: (profile: StorageProfile): StorageProfile => this.getProfileDraft(profile),
+			pathResolver: this.pathResolver,
+			persist: (): void => {
+				this.persist();
+			},
+			persistAndRedisplay: (): void => {
+				this.persistAndRedisplay();
+			},
+			profileDrafts: this.profileDrafts,
+			redisplay: (): void => {
+				this.update();
+			},
+			registry: this.registry,
+			settings: this.settings,
+			toggleProfileExpanded: (profileId: string): void => {
+				this.toggleProfileExpanded(profileId);
+			}
+		};
 	}
 
 	private getProfileDraft(profile: StorageProfile): StorageProfile {
@@ -88,42 +159,9 @@ export class PluginSettingsTab extends PluginSettingTab {
 		});
 	}
 
-	private renderSettings(): void {
-		this.containerEl.empty();
-
-		const ctx = {
-			app: this.app,
-			applyProfileDraft: (profileId: string): void => {
-				this.applyProfileDraft(profileId);
-			},
-			expandedProfileIds: this.expandedProfileIds,
-			getProfileDraft: (profile: StorageProfile): StorageProfile => this.getProfileDraft(profile),
-			pathResolver: this.pathResolver,
-			persist: (): void => {
-				this.persist();
-			},
-			persistAndRedisplay: (): void => {
-				this.persistAndRedisplay();
-			},
-			profileDrafts: this.profileDrafts,
-			redisplay: (): void => {
-				this.renderSettings();
-			},
-			registry: this.registry,
-			settings: this.settings,
-			toggleProfileExpanded: (profileId: string): void => {
-				this.toggleProfileExpanded(profileId);
-			}
-		};
-
-		displayGeneralSection(this.containerEl, ctx);
-		displayS3Section(this.containerEl, ctx);
-		// Stub settings UI hidden until image processing / operations are implemented.
-	}
-
 	private async saveAndRedisplay(): Promise<void> {
 		await this.saveSettings();
-		this.renderSettings();
+		this.update();
 	}
 
 	private toggleProfileExpanded(profileId: string): void {
@@ -133,10 +171,124 @@ export class PluginSettingsTab extends PluginSettingTab {
 		} else {
 			this.expandedProfileIds.add(profileId);
 		}
-		this.renderSettings();
+		this.update();
 	}
+}
+
+/** Pure builder used by the settings tab and unit tests. */
+export function buildLanTaiSettingDefinitions(
+	params: BuildLanTaiSettingDefinitionsParams
+): SettingDefinitionItem[] {
+	const { pathResolver, settings } = params;
+
+	return [
+		{
+			heading: t('settings.general'),
+			items: [
+				{
+					control: {
+						key: 'attachmentBase',
+						options: {
+							note: t('settings.currentNoteFolder'),
+							vault: t('settings.vaultRoot')
+						},
+						type: 'dropdown'
+					},
+					desc: t('settings.attachmentBaseDesc'),
+					name: t('settings.attachmentBase')
+				},
+				{
+					name: t('settings.localPathTemplate'),
+					render: (setting: Setting): void => {
+						renderLocalPathTemplate(setting, pathResolver, settings, (): void => {
+							params.buildSectionContext().persist();
+						});
+					}
+				},
+				{
+					control: {
+						key: 'linkStyle',
+						options: {
+							markdown: t('settings.markdown'),
+							wiki: t('settings.wiki')
+						},
+						type: 'dropdown'
+					},
+					desc: t('settings.linkStyleDesc'),
+					name: t('settings.linkStyle')
+				}
+			],
+			type: 'group'
+		},
+		{
+			heading: t('settings.s3'),
+			items: [
+				{
+					aliases: [
+						t('settings.newProfile'),
+						t('settings.emptyProfiles'),
+						t('settings.profileName')
+					],
+					name: t('settings.s3Profiles'),
+					render: (setting: Setting): void => {
+						const host = setting.settingEl;
+						host.empty();
+						host.addClass('lantai-s3-settings-host');
+						displayS3SectionBody(host, params.buildSectionContext());
+					}
+				},
+				{
+					control: {
+						key: 'deleteSourceAfterUpload',
+						type: 'toggle'
+					},
+					desc: t('settings.deleteSourceAfterUploadDesc'),
+					name: t('settings.deleteSourceAfterUpload')
+				}
+			],
+			type: 'group'
+		}
+	];
 }
 
 function cloneProfile(profile: StorageProfile): StorageProfile {
 	return { ...profile };
+}
+
+function localPathTemplateDesc(
+	pathResolver: AttachmentPathResolver,
+	settings: PluginSettings,
+	template: string
+): string {
+	try {
+		const preview = pathResolver.resolveLocalPath({
+			base: settings.attachmentBase,
+			ctx: previewContext(),
+			noteFolderPath: 'Notes',
+			template
+		});
+		return t('settings.preview', { path: preview });
+	} catch (error) {
+		const message = error instanceof Error ? error.message : t('settings.invalidTemplate');
+		return t('settings.invalidTemplateWithMessage', { message });
+	}
+}
+
+function renderLocalPathTemplate(
+	setting: Setting,
+	pathResolver: AttachmentPathResolver,
+	settings: PluginSettings,
+	persist: () => void
+): void {
+	setting
+		.setDesc(localPathTemplateDesc(pathResolver, settings, settings.localPathTemplate))
+		.setClass('lantai-path-template');
+	attachTokenInfoButton(setting.nameEl);
+	setting.addText((text) => {
+		text.setValue(settings.localPathTemplate).onChange((value) => {
+			settings.localPathTemplate = value;
+			setting.setDesc(localPathTemplateDesc(pathResolver, settings, value));
+			persist();
+		});
+	});
 }

@@ -44,10 +44,10 @@ npm run version -- 0.2.0 --no-release
 5. 更新 `package.json`（及存在的 lockfile）、`manifest.json`、`versions.json`（`version` → `minAppVersion`）
 6. 根据提交生成/更新 `CHANGELOG.md`，并打开编辑器审阅（除非 `--no-changelog-editing`）
 7. 提交（`chore: release <version>`）、打 annotated tag 并推送
-8. 用 `gh release create` 创建 GitHub Release（标题 `v<version>`），上传插件构建目录下的全部产物（通常为 `dist/build/`，例如存在的 `main.js`、`manifest.json`、`styles.css`），并可附带 demo-vault 压缩包
+8. 用 `gh release create` 创建 GitHub Release（标题 `v<version>`），上传插件构建目录下的产物（通常为 `dist/build/` 中的 **`main.js`**、**`manifest.json`**、**`styles.css`**）。**不会**附带 demo-vault 压缩包（Obsidian 社区安装只下载上述三件套）。
 9. 若版本为 semver 预发布（如 `1.2.4-beta.0`），则标记为 prerelease
 
-常用开关（功能默认开启，`--no-*` 关闭）：
+常用开关（功能默认开启，`--no-*` 关闭；本仓库对 demo-vault 有例外）：
 
 | 开关 | 作用 |
 |------|------|
@@ -55,8 +55,12 @@ npm run version -- 0.2.0 --no-release
 | `--no-checks` | 跳过干净仓库 / format / spellcheck / lint / 测试（除非同时 `--no-build`，构建仍会执行） |
 | `--no-changelog-editing` | 生成 changelog 但不打开编辑器 |
 | `--no-commit-verification` | 发版提交使用 `--no-verify` |
-| `--no-demo-vault` | 不把 `demo-vault/` 打成发布附件 |
+| `--no-demo-vault` | 在本仓库为无操作：demo-vault 归档始终关闭（见 `scripts/version.ts`） |
 | `--no-release` | 完成本地步骤，但不推送、不创建 GitHub Release |
+
+## 社区插件审查说明
+
+兰台为 `isDesktopOnly: true`。Obsidian 自动审查可能对 Node `fs` / `child_process`、剪贴板访问、以及 vault 全库枚举给出 Warning。这些能力服务于桌面图床流程（系统剪贴板、在资源管理器中显示、用默认应用打开、跨笔记检查图片引用等），属于预期行为，不视为需删除的缺陷。
 
 ## 发布之后
 

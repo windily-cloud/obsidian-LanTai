@@ -28,5 +28,10 @@ await wrapCliTask(async () => {
 
 	const [, , ...args] = process.argv;
 	const { options, versionUpdateType } = parseVersionArgs(args);
-	await updateVersion(versionUpdateType, options);
+	// Obsidian community releases should only ship main.js / manifest.json / styles.css.
+	// Keep demo-vault for local `npm run dev`, but do not upload it as a release asset.
+	await updateVersion(versionUpdateType, {
+		...options,
+		shouldArchiveDemoVault: false
+	});
 });
