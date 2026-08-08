@@ -2,6 +2,10 @@
 
 ## 0.0.2
 
+- chore: 用 dprint 统一 JSON 缩进为 tab
+
+## 0.0.2
+
 - feat: 接管图片新建落盘并修正删除确认顺序
 - feat: 补全插件 en/zh 双语 i18n
 - dev: 添加布局样式
