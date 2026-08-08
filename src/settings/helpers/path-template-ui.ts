@@ -5,19 +5,7 @@ import {
 
 import type { NameTemplateContext } from '../../path/name-template-context.ts';
 
-/* eslint-disable no-template-curly-in-string -- token docs shown in UI tooltip */
-const PATH_TEMPLATE_TOKEN_ITEMS = [
-	'${noteFileName} — Note name (no ext)',
-	'${noteFolderName} — Parent folder name',
-	'${noteFilePath} — Note path (no ext)',
-	'${noteFolderPath} — Parent folder path',
-	'${date} — Date (YYYY-MM-DD; :format)',
-	'${uuid} — UUID without hyphens',
-	'${random} — Random chars (:length)',
-	'${originalName} — Image name (no ext)',
-	'${ext} — Image extension'
-];
-/* eslint-enable no-template-curly-in-string -- token docs shown in UI tooltip */
+import { t } from '../../i18n/index.ts';
 
 export function attachTokenInfoButton(nameEl: HTMLElement): void {
 	const info = new ExtraButtonComponent(nameEl).setIcon('info');
@@ -48,11 +36,25 @@ function buildPathTemplateTokenTooltip(): DocumentFragment {
 	const fragment = createFragment();
 	const list = createEl('ul');
 	list.className = 'lantai-token-list';
-	for (const item of PATH_TEMPLATE_TOKEN_ITEMS) {
+	for (const item of pathTemplateTokenItems()) {
 		const li = createEl('li');
 		li.textContent = item;
 		list.append(li);
 	}
 	fragment.append(list);
 	return fragment;
+}
+
+function pathTemplateTokenItems(): string[] {
+	return [
+		t('settings.tokenNoteFileName'),
+		t('settings.tokenNoteFolderName'),
+		t('settings.tokenNoteFilePath'),
+		t('settings.tokenNoteFolderPath'),
+		t('settings.tokenDate'),
+		t('settings.tokenUuid'),
+		t('settings.tokenRandom'),
+		t('settings.tokenOriginalName'),
+		t('settings.tokenExt')
+	];
 }

@@ -17,31 +17,32 @@ import type { DownloadAction } from './download-action.ts';
 import type { LocalizeAction } from './localize-action.ts';
 import type { UploadAction } from './upload-action.ts';
 
+import { t } from '../i18n/index.ts';
 import { validateStorageSecrets } from '../storage/storage-credential-guard.ts';
-
-export interface ClassifiedImageRefs {
-	local: ImageRef[];
-	remote: ImageRef[];
-}
-
-export type CreateObjectStorage = (
-	profile: StorageProfile,
-	secrets: StorageSecrets
-) => Promise<ObjectStorage>;
-
-export type GetSecret = (name: string) => null | string;
-
-export type HasLocalReference = (
-	localPath: string,
-	context: ImageActionContext
-) => Promise<boolean>;
 
 export interface ImageActionContext {
 	note: NoteContent;
 	noteFilePath: string;
 }
 
-export interface ImageActionFacadeConstructorParams {
+interface ClassifiedImageRefs {
+	local: ImageRef[];
+	remote: ImageRef[];
+}
+
+type CreateObjectStorage = (
+	profile: StorageProfile,
+	secrets: StorageSecrets
+) => Promise<ObjectStorage>;
+
+type GetSecret = (name: string) => null | string;
+
+type HasLocalReference = (
+	localPath: string,
+	context: ImageActionContext
+) => Promise<boolean>;
+
+interface ImageActionFacadeConstructorParams {
 	readonly createStorage: CreateObjectStorage;
 	readonly downloadAction: DownloadAction;
 	readonly getSecret: GetSecret;
@@ -56,7 +57,7 @@ export interface ImageActionFacadeConstructorParams {
 	readonly vault: VaultBinary;
 }
 
-export type ResolveVaultPath = (
+type ResolveVaultPath = (
 	target: string,
 	noteFilePath: string
 ) => null | string;
@@ -99,7 +100,7 @@ export class ImageActionFacade {
 			? undefined
 			: (this.resolveVaultPath(target.target, context.noteFilePath) ?? undefined);
 		if (!target.isRemote && !localPath) {
-			return { message: 'Local image was not found', ok: false, reason: 'missing' };
+			return { message: t('errors.localImageNotFound'), ok: false, reason: 'missing' };
 		}
 		return this.downloadAction.execute({
 			defaultFileName: fileName,
@@ -131,7 +132,7 @@ export class ImageActionFacade {
 		context: ImageActionContext
 	): Promise<ActionResult> {
 		if (!ref.isRemote) {
-			return { message: 'Image is already local', ok: false, reason: 'missing' };
+			return { message: t('errors.alreadyLocal'), ok: false, reason: 'missing' };
 		}
 		return this.localizeAction.execute({
 			attachmentBase: this.settings.attachmentBase,
@@ -171,21 +172,21 @@ export class ImageActionFacade {
 		context: ImageActionContext
 	): Promise<ActionResult> {
 		if (ref.isRemote) {
-			return { message: 'Image is already remote', ok: false, reason: 'missing' };
+			return { message: t('errors.alreadyRemote'), ok: false, reason: 'missing' };
 		}
 		const profile = this.settings.profiles.find(
 			(item) => item.id === this.settings.activeProfileId
 		);
 		if (!profile) {
 			return {
-				message: 'No active storage profile',
+				message: t('errors.noActiveStorageProfile'),
 				ok: false,
 				reason: 'missing'
 			};
 		}
 		if (!profile.publicBaseUrl.trim()) {
 			return {
-				message: 'Public Base URL is required',
+				message: t('errors.publicBaseUrlRequired'),
 				ok: false,
 				reason: 'missing'
 			};
@@ -194,7 +195,7 @@ export class ImageActionFacade {
 		const secretAccessKey = this.getSecret(profile.secretAccessKeySecretName);
 		if (!accessKeyId || !secretAccessKey) {
 			return {
-				message: 'Storage profile secrets are missing',
+				message: t('errors.storageSecretsMissing'),
 				ok: false,
 				reason: 'missing'
 			};
@@ -210,7 +211,7 @@ export class ImageActionFacade {
 		}
 		const localPath = this.resolveVaultPath(ref.target, context.noteFilePath);
 		if (!localPath) {
-			return { message: 'Local image was not found', ok: false, reason: 'missing' };
+			return { message: t('errors.localImageNotFound'), ok: false, reason: 'missing' };
 		}
 		const storage = await this.createStorage(profile, {
 			accessKeyId,
@@ -239,6 +240,7 @@ export class ImageActionFacade {
 	}
 }
 
+/** Exposed for unit tests. */
 export function classifyRefs(refs: readonly ImageRef[]): ClassifiedImageRefs {
 	const local: ImageRef[] = [];
 	const remote: ImageRef[] = [];
@@ -250,7 +252,7 @@ export function classifyRefs(refs: readonly ImageRef[]): ClassifiedImageRefs {
 
 function actionErrorResult(error: unknown): ActionResult {
 	return {
-		message: error instanceof Error ? error.message : 'Image action failed.',
+		message: error instanceof Error ? error.message : t('errors.imageActionFailed'),
 		ok: false,
 		reason: 'error'
 	};

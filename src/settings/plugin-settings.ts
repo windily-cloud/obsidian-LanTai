@@ -10,16 +10,14 @@ import type { StorageProfile } from './sections/s3/storage-profile.ts';
 
 import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
 import { displayGeneralSection } from './sections/general-section.ts';
-import { displayImageOperationsSection } from './sections/image-operations-section.ts';
-import { displayImageProcessingSection } from './sections/image-processing-section.ts';
 import { displayS3Section } from './sections/s3/s3-section.ts';
-
+// Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
 export type LinkStyle = 'markdown' | 'wiki';
 
-export type PersistPluginSettings = () => Promise<void>;
+type PersistPluginSettings = () => Promise<void>;
 
-export interface PluginSettingsTabConstructorParams {
+interface PluginSettingsTabConstructorParams {
 	readonly app: App;
 	readonly pathResolver: AttachmentPathResolver;
 	readonly plugin: Plugin;
@@ -120,8 +118,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 
 		displayGeneralSection(this.containerEl, ctx);
 		displayS3Section(this.containerEl, ctx);
-		displayImageProcessingSection(this.containerEl);
-		displayImageOperationsSection(this.containerEl);
+		// Stub settings UI hidden until image processing / operations are implemented.
 	}
 
 	private async saveAndRedisplay(): Promise<void> {

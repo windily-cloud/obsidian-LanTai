@@ -5,6 +5,8 @@ import type {
 	ImageRef
 } from './image-ref.ts';
 
+import { t } from '../i18n/index.ts';
+
 const IMAGE_LAYOUTS = new Set<ImageLayout>(['center', 'left', 'right']);
 const MARKDOWN_FIRST_LAYOUT_INDEX = 1;
 
@@ -51,14 +53,17 @@ export class ImageLinkService {
 		return ref.decorations.slice(firstLayoutIndex).find(isImageLayout) ?? null;
 	}
 
+	/** Exposed for unit tests. */
 	public hasSize(ref: ImageRef): boolean {
 		return ref.decorations.some(isSizeDecoration);
 	}
 
+	/** Exposed for unit tests. */
 	public parse(content: string): ImageRef[] {
 		return this.parser.parse(content);
 	}
 
+	/** Exposed for unit tests. */
 	public replace(
 		content: string,
 		ref: ImageRef,
@@ -66,15 +71,16 @@ export class ImageLinkService {
 		linkStyle: 'markdown' | 'wiki'
 	): string {
 		if (content.slice(ref.start, ref.end) !== ref.source) {
-			throw new Error('The image link changed before it could be updated.');
+			throw new Error(t('errors.linkChangedBeforeUpdate'));
 		}
 		const replacement = this.formatTarget(toTarget, linkStyle);
 		return `${content.slice(0, ref.start)}${replacement}${content.slice(ref.end)}`;
 	}
 
+	/** Exposed for unit tests. */
 	public setLayout(content: string, ref: ImageRef, layout: ImageLayout): string {
 		if (content.slice(ref.start, ref.end) !== ref.source) {
-			throw new Error('The image link changed before its layout could be updated.');
+			throw new Error(t('errors.linkChangedBeforeLayout'));
 		}
 		const decorations = ref.kind === 'markdown' && ref.decorations.length === 0
 			? ['']

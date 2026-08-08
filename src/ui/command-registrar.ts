@@ -17,9 +17,10 @@ import type { ImageLinkService } from '../link/image-link-service.ts';
 import type { ImageRef } from '../link/image-ref.ts';
 
 import { ObsidianNoteContent } from '../adapters/obsidian/note-content.obsidian.ts';
+import { t } from '../i18n/index.ts';
 import { formatActionError } from '../storage/storage-credential-guard.ts';
 
-export interface CommandRegistrarConstructorParams {
+interface CommandRegistrarConstructorParams {
 	readonly app: App;
 	readonly facade: ImageActionFacade;
 	readonly linkService: ImageLinkService;
@@ -42,24 +43,21 @@ export class CommandRegistrar {
 	}
 
 	public register(): void {
-		this.registerSingleImageCommand('upload', 'Upload current image');
-		this.registerSingleImageCommand('localize', 'Localize current image');
-		this.registerSingleImageCommand('download', 'Download current image');
+		this.registerSingleImageCommand('upload', t('commands.uploadCurrent'));
+		this.registerSingleImageCommand('localize', t('commands.localizeCurrent'));
+		this.registerSingleImageCommand('download', t('commands.downloadCurrent'));
 		this.plugin.addCommand({
 			editorCallback: (editor, info) => this.runBatch('upload', editor, info),
 			id: 'upload-all-local-images',
-			name: 'Upload all local images in current note'
+			name: t('commands.uploadAll')
 		});
 		this.plugin.addCommand({
 			editorCallback: (editor, info) => this.runBatch('localize', editor, info),
 			id: 'localize-all-remote-images',
-			name: 'Localize all remote images in current note'
+			name: t('commands.localizeAll')
 		});
-		this.registerConvertCommand('wiki', 'Convert current note images to Wiki links');
-		this.registerConvertCommand(
-			'markdown',
-			'Convert current note images to Markdown links'
-		);
+		this.registerConvertCommand('wiki', t('commands.convertToWiki'));
+		this.registerConvertCommand('markdown', t('commands.convertToMarkdown'));
 	}
 
 	private async createContext(
@@ -67,7 +65,7 @@ export class CommandRegistrar {
 		file: null | TFile
 	): Promise<ImageActionContext | null> {
 		if (!file) {
-			new Notice('Open a Markdown note first.');
+			new Notice(t('notices.openMarkdownNote'));
 			return null;
 		}
 		return {
@@ -129,14 +127,20 @@ export class CommandRegistrar {
 		const failures = results.filter((result) => !result.ok);
 		if (failures.length > 0) {
 			new Notice(
-				`${action === 'upload' ? 'Upload' : 'Localization'} finished: ${String(results.length - failures.length)} succeeded, ${String(failures.length)} failed.`
+				t('notices.batchFinished', {
+					action: action === 'upload'
+						? t('commands.uploadActionName')
+						: t('commands.localizeActionName'),
+					failed: failures.length,
+					succeeded: results.length - failures.length
+				})
 			);
 			return;
 		}
 		if (action === 'upload') {
 			return;
 		}
-		new Notice(`${String(results.length)} image(s) processed.`);
+		new Notice(t('notices.imagesProcessed', { count: results.length }));
 	}
 
 	private reportError(error: unknown): void {
@@ -152,7 +156,11 @@ export class CommandRegistrar {
 		if (result.cancelled || action === 'upload') {
 			return;
 		}
-		new Notice(`${capitalize(action)} completed.`);
+		new Notice(
+			action === 'download'
+				? t('notices.downloadCompleted')
+				: t('notices.localizeCompleted')
+		);
 	}
 
 	private async runBatch(
@@ -190,7 +198,7 @@ export class CommandRegistrar {
 				editor.getCursor().ch
 			);
 			if (!ref) {
-				new Notice('Place the cursor on an image link first.');
+				new Notice(t('notices.placeCursorOnImage'));
 				return;
 			}
 			await this.executeOne(action, ref, context);
@@ -200,7 +208,22 @@ export class CommandRegistrar {
 	}
 }
 
-export function findRefAtCursor(
+function failureMessage(reason: 'conflict' | 'error' | 'missing'): string {
+	switch (reason) {
+		case 'conflict':
+			return t('notices.failureConflict');
+		case 'error':
+			return t('notices.failureError');
+		case 'missing':
+			return t('notices.failureMissing');
+		default: {
+			const _exhaustive: never = reason;
+			return _exhaustive;
+		}
+	}
+}
+
+function findRefAtCursor(
 	refs: readonly ImageRef[],
 	line: string,
 	cursorColumn: number
@@ -216,23 +239,4 @@ export function findRefAtCursor(
 	}
 	const onLine = refs.filter((ref) => line.includes(ref.source));
 	return onLine.length === 1 ? (onLine[0] ?? null) : null;
-}
-
-function capitalize(value: string): string {
-	return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
-}
-
-function failureMessage(reason: 'conflict' | 'error' | 'missing'): string {
-	switch (reason) {
-		case 'conflict':
-			return 'Target already exists; nothing was overwritten.';
-		case 'error':
-			return 'Image action failed.';
-		case 'missing':
-			return 'Required image or configuration was not found.';
-		default: {
-			const _exhaustive: never = reason;
-			return _exhaustive;
-		}
-	}
 }

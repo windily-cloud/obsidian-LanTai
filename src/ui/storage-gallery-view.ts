@@ -27,6 +27,7 @@ import type {
 } from '../storage/object-storage.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
 
+import { t } from '../i18n/index.ts';
 import {
 	formatActionError,
 	validateStorageSecrets
@@ -44,18 +45,6 @@ const PAGE_SIZE = 48;
 const SEARCH_DEBOUNCE_MS = 250;
 const SCROLL_LOAD_THRESHOLD = 300;
 
-export interface StorageGalleryViewConstructorParams {
-	createStorage(
-		profile: StorageProfile,
-		secrets: StorageSecrets
-	): Promise<ObjectStorageBrowser>;
-	readonly findReferences: RemoteImageReferenceFinder;
-	getSecret(name: string): null | string;
-	readonly leaf: WorkspaceLeaf;
-	saveSettings(): Promise<void>;
-	readonly settings: PluginSettings;
-}
-
 interface ButtonWithDisabledState {
 	setDisabled(disabled: boolean): unknown;
 }
@@ -68,6 +57,18 @@ interface DeleteStorageImageModalConstructorParams {
 }
 
 type GalleryLayout = 'cards' | 'masonry';
+
+interface StorageGalleryViewConstructorParams {
+	createStorage(
+		profile: StorageProfile,
+		secrets: StorageSecrets
+	): Promise<ObjectStorageBrowser>;
+	readonly findReferences: RemoteImageReferenceFinder;
+	getSecret(name: string): null | string;
+	readonly leaf: WorkspaceLeaf;
+	saveSettings(): Promise<void>;
+	readonly settings: PluginSettings;
+}
 
 interface StorageImageLightboxModalConstructorParams {
 	readonly app: App;
@@ -92,13 +93,13 @@ class DeleteStorageImageModal extends Modal {
 	}
 
 	public override onOpen(): void {
-		this.setTitle('Delete S3 image?');
+		this.setTitle(t('gallery.deleteTitle'));
 		this.contentEl.createEl('p', {
-			text: `This permanently deletes ${this.file.key} from object storage.`
+			text: t('gallery.permanentlyDeletes', { key: this.file.key })
 		});
 		if (this.references.length > 0) {
 			this.contentEl.createEl('p', {
-				text: `Referenced by ${String(this.references.length)} note${this.references.length === 1 ? '' : 's'}:`
+				text: t('gallery.referencedBy', { count: this.references.length })
 			});
 			const listEl = this.contentEl.createEl(
 				'ul',
@@ -112,13 +113,13 @@ class DeleteStorageImageModal extends Modal {
 		}
 		new Setting(this.contentEl)
 			.addButton((button) =>
-				button.setButtonText('Cancel').onClick(() => {
+				button.setButtonText(t('gallery.cancel')).onClick(() => {
 					this.close();
 				})
 			)
 			.addButton((button) =>
 				button
-					.setButtonText('Delete')
+					.setButtonText(t('gallery.delete'))
 					.setWarning()
 					.onClick(() => {
 						this.delete(button).catch((error: unknown) => {
@@ -309,7 +310,7 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	public override getDisplayText(): string {
-		return 'S3 images';
+		return t('gallery.viewTitle');
 	}
 
 	public override getIcon(): string {
@@ -345,7 +346,7 @@ export class StorageGalleryView extends ItemView {
 		);
 		const searchEl = toolbarEl.createDiv('lantai-gallery-search');
 		new SearchComponent(searchEl)
-			.setPlaceholder('Search object keys...')
+			.setPlaceholder(t('gallery.searchPlaceholder'))
 			.onChange((value) => {
 				this.scheduleSearch(value);
 			});
@@ -361,9 +362,9 @@ export class StorageGalleryView extends ItemView {
 			});
 		this.profileDropdown.selectEl.setAttribute(
 			'aria-label',
-			'Gallery storage profile'
+			t('gallery.profileAria')
 		);
-		this.profileDropdown.selectEl.title = 'Gallery storage profile';
+		this.profileDropdown.selectEl.title = t('gallery.profileAria');
 		this.refreshProfileDropdown();
 		const layoutEl = controlsEl.createDiv('lantai-gallery-layout');
 		this.layoutButton = new ExtraButtonComponent(layoutEl).onClick(() => {
@@ -403,9 +404,7 @@ export class StorageGalleryView extends ItemView {
 			file,
 			onConfirm: async (): Promise<void> => {
 				if (storage !== this.storage) {
-					throw new Error(
-						'Storage profile or search changed. Open the delete menu again.'
-					);
+					throw new Error(t('errors.galleryProfileChanged'));
 				}
 				await storage.delete(file.key);
 				for (const card of this.gridEl?.children ?? []) {
@@ -415,7 +414,7 @@ export class StorageGalleryView extends ItemView {
 					}
 				}
 				this.updateEmptyState();
-				new Notice('S3 image deleted');
+				new Notice(t('gallery.deletedNotice'));
 			},
 			references
 		}).open();
@@ -424,15 +423,15 @@ export class StorageGalleryView extends ItemView {
 	private async createActiveStorage(): Promise<ObjectStorageBrowser> {
 		const profile = this.getSelectedProfile();
 		if (!profile) {
-			throw new Error('No active storage profile');
+			throw new Error(t('errors.noActiveStorageProfile'));
 		}
 		if (!profile.publicBaseUrl.trim()) {
-			throw new Error('Public Base URL is required');
+			throw new Error(t('errors.publicBaseUrlRequired'));
 		}
 		const accessKeyId = this.getSecret(profile.accessKeyIdSecretName);
 		const secretAccessKey = this.getSecret(profile.secretAccessKeySecretName);
 		if (!accessKeyId || !secretAccessKey) {
-			throw new Error('Storage profile secrets are missing');
+			throw new Error(t('errors.storageSecretsMissing'));
 		}
 		const secretProblem = validateStorageSecrets({
 			accessKeyId,
@@ -471,7 +470,7 @@ export class StorageGalleryView extends ItemView {
 			return;
 		}
 		this.loading = true;
-		this.loadingEl?.setText('Loading...');
+		this.loadingEl?.setText(t('gallery.loading'));
 		const generation = this.loadGeneration;
 		try {
 			const files = this.query
@@ -617,7 +616,7 @@ export class StorageGalleryView extends ItemView {
 		return new Menu().addItem((item) =>
 			item
 				.setIcon('trash')
-				.setTitle('Delete S3 image')
+				.setTitle(t('gallery.deleteMenu'))
 				.onClick(() => {
 					this.confirmDelete(file, publicUrl).catch((error: unknown) => {
 						this.showError(error);
@@ -635,7 +634,7 @@ export class StorageGalleryView extends ItemView {
 		this.hasMore = true;
 		this.loading = false;
 		this.emptyEl?.setText('');
-		this.loadingEl?.setText('Loading...');
+		this.loadingEl?.setText(t('gallery.loading'));
 		try {
 			await previousIterator?.return();
 			if (generation !== this.loadGeneration) {
@@ -692,12 +691,12 @@ export class StorageGalleryView extends ItemView {
 		}
 		this.profileDropdown.selectEl.empty();
 		if (this.settings.profiles.length === 0) {
-			this.profileDropdown.addOption('', 'No storage profiles');
+			this.profileDropdown.addOption('', t('gallery.noProfiles'));
 		} else {
 			for (const profile of this.settings.profiles) {
 				this.profileDropdown.addOption(
 					profile.id,
-					profile.name || 'Untitled profile'
+					profile.name || t('gallery.untitledProfile')
 				);
 			}
 		}
@@ -733,7 +732,7 @@ export class StorageGalleryView extends ItemView {
 			return;
 		}
 		this.emptyEl?.setText(
-			this.query ? 'No matching images' : 'No images found'
+			this.query ? t('gallery.noMatching') : t('gallery.noImages')
 		);
 	}
 
@@ -745,20 +744,22 @@ export class StorageGalleryView extends ItemView {
 		);
 		this.layoutButton
 			?.setIcon(isMasonry ? 'layout-grid' : 'columns-3')
-			.setTooltip(isMasonry ? 'Switch to card view' : 'Switch to masonry view');
+			.setTooltip(isMasonry ? t('gallery.switchToCard') : t('gallery.switchToMasonry'));
 		const buttonEl = this.layoutButton?.extraSettingsEl;
 		if (buttonEl) {
 			buttonEl.setAttribute('aria-pressed', String(isMasonry));
-			buttonEl.setAttribute('aria-label', 'Masonry view');
+			buttonEl.setAttribute('aria-label', t('gallery.masonryAria'));
 		}
 	}
 }
 /* eslint-enable perfectionist/sort-classes -- lifecycle and loading steps stay in execution order. */
 
+/** Exposed for unit tests. */
 export function getObjectFileName(objectKey: string): string {
 	return objectKey.split('/').at(-1) ?? objectKey;
 }
 
+/** Exposed for unit tests. */
 export function selectGalleryProfile(
 	profiles: readonly StorageProfile[],
 	galleryProfileId: null | string,

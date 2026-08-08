@@ -1,14 +1,14 @@
 import type { NameTemplateContext } from './name-template-context.ts';
 import type { NameTemplateEngine } from './name-template-engine.ts';
 
-export interface ResolveLocalPathInput {
+interface ResolveLocalPathInput {
 	base: 'note' | 'vault';
 	ctx: NameTemplateContext;
 	noteFolderPath: string;
 	template: string;
 }
 
-export interface ResolveObjectKeyInput {
+interface ResolveObjectKeyInput {
 	ctx: NameTemplateContext;
 	template: string;
 }

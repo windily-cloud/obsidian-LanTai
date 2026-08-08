@@ -2,12 +2,14 @@ import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type { ObjectStorage } from '../object-storage.ts';
 
-export interface FakeObjectStorageConstructorParams {
+interface FakeObjectStorageConstructorParams {
 	readonly existing?: string[];
 	readonly publicBaseUrl: string;
 }
 
+/** Test double for ObjectStorage. */
 export class FakeObjectStorage implements ObjectStorage {
+	/** Exposed for unit tests. */
 	public readonly uploadedKeys: string[] = [];
 	private readonly existing: Set<string>;
 	private readonly publicBaseUrl: string;

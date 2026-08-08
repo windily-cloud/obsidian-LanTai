@@ -1,4 +1,4 @@
-export interface FormatImageLinkInput {
+interface FormatImageLinkInput {
 	alt?: string;
 	linkStyle: 'markdown' | 'wiki';
 	target: string;

@@ -1,11 +1,13 @@
 # Contributing
 
-Contributions are welcome! Here's how to get started.
+[English](CONTRIBUTING.md) | [中文](CONTRIBUTING.zh.md)
+
+Thanks for contributing to LanTai（兰台）.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (see `.node-version`)
-- npm (comes with Node.js)
+- [Node.js](https://nodejs.org/) matching [`.node-version`](.node-version)
+- npm (ships with Node.js)
 
 ## Setup
 
@@ -15,7 +17,7 @@ cd obsidian-LanTai
 npm install
 ```
 
-## Development Workflow
+## Development workflow
 
 ### Build
 
@@ -23,7 +25,7 @@ npm install
 npm run build
 ```
 
-### Dev Mode
+### Dev mode
 
 Create a local `.env` (see `.env.example`):
 
@@ -31,39 +33,29 @@ Create a local `.env` (see `.env.example`):
 cp .env.example .env
 ```
 
-Set `OBSIDIAN_CONFIG_FOLDER` to a vault's `.obsidian` path (default: `demo-vault/.obsidian`), then:
+Set `OBSIDIAN_CONFIG_FOLDER` to a vault’s `.obsidian` path (default: `demo-vault/.obsidian`), then:
 
 ```bash
 npm run dev
 ```
 
-`npm run dev` watches and copies the plugin into that folder. It does **not** auto-launch Obsidian.
+`npm run dev` watches and copies the plugin into that folder. It does **not** launch Obsidian.
 
 1. In Obsidian: **Open folder as vault** → select `demo-vault/`
-2. Click **Trust author and enable plugins** once
-3. Enable community plugins **Hot Reload** and **LanTai**
-   (Hot Reload is already present under `demo-vault/.obsidian/plugins/hot-reload/` for local dev; if missing, install it from Community plugins)
-4. Edit `src/` — rebuilds copy automatically; Hot Reload shows a brief notice when the plugin reloads
+2. Trust the author and enable community plugins once
+3. Enable **Hot Reload** and **LanTai**
+   (Hot Reload is under `demo-vault/.obsidian/plugins/hot-reload/` for local dev; install from Community plugins if missing)
+4. Edit `src/` — rebuilds copy automatically; Hot Reload shows a brief notice on reload
 
-If changes don't reload: confirm Settings → Community plugins shows both enabled, and that `npm run dev` prints `Copied build → ...`.
+If changes do not reload: confirm both plugins are enabled, and that `npm run dev` prints `Copied build → ...`.
 
-### Lint
+### Lint / format / spellcheck
 
 ```bash
 npm run lint
 npm run lint:fix
-```
-
-### Format
-
-```bash
 npm run format:check
 npm run format
-```
-
-### Spellcheck
-
-```bash
 npm run spellcheck
 ```
 
@@ -74,7 +66,33 @@ npm run test
 npm run test:coverage
 ```
 
-## Pull Requests
+Domain logic is developed test-first where practical. Prefer unit tests next to the module (`*.test.ts`) at the public seams.
 
-- Base your PR on the `main` branch.
-- Ensure all checks pass (`lint`, `format:check`, `spellcheck`, `test`).
+## Pull requests
+
+- Base PRs on `main`.
+- Prefer conventional commits (`npm run commit` helps).
+- Before opening a PR, run locally and ensure they pass:
+
+  ```bash
+  npm run lint
+  npm run format:check
+  npm run spellcheck
+  npm run test
+  ```
+
+  There may be no mandatory PR CI yet; **local green checks + review** are the gate.
+
+### Unit tests are required for behavioral changes
+
+Any change that alters runtime behavior—new features, bug fixes, domain or adapter logic—**must** add or update unit tests (`*.test.ts`) and pass `npm run test` **before** you open (and before we merge) the PR.
+
+Documentation-only, comment-only, or pure non-behavioral edits may omit new tests; say so explicitly in the PR description.
+
+PRs that change behavior without tests will be asked to add them before merge.
+
+## Further reading
+
+- Product domain language: [`CONTEXT.md`](CONTEXT.md) (Chinese)
+- User docs: [`README.md`](README.md)
+- Maintainer releases: [`RELEASE.md`](RELEASE.md)

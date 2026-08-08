@@ -5,24 +5,6 @@ import type {
 
 export type { ImageTarget } from '../link/image-ref.ts';
 
-export interface ImageMenuCapabilities {
-	readonly copy: boolean;
-	readonly copyPath: boolean;
-	readonly deleteFile: boolean;
-	readonly download: boolean;
-	readonly layout: boolean;
-	readonly localize: boolean;
-	readonly move: boolean;
-	readonly openLocal: boolean;
-	readonly openTab: boolean;
-	readonly remove: boolean;
-	readonly rename: boolean;
-	readonly replace: boolean;
-	readonly resetSize: boolean;
-	readonly star: boolean;
-	readonly upload: boolean;
-}
-
 export type ImageMenuItemKey =
 	| 'copy'
 	| 'copyPath'
@@ -43,6 +25,24 @@ export type ImageMenuItemKey =
 	| 'showInFolder'
 	| 'star'
 	| 'upload';
+
+interface ImageMenuCapabilities {
+	readonly copy: boolean;
+	readonly copyPath: boolean;
+	readonly deleteFile: boolean;
+	readonly download: boolean;
+	readonly layout: boolean;
+	readonly localize: boolean;
+	readonly move: boolean;
+	readonly openLocal: boolean;
+	readonly openTab: boolean;
+	readonly remove: boolean;
+	readonly rename: boolean;
+	readonly replace: boolean;
+	readonly resetSize: boolean;
+	readonly star: boolean;
+	readonly upload: boolean;
+}
 
 const IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
 	['copy'],
@@ -83,20 +83,20 @@ export interface ImageSourceRange {
 	readonly start: number;
 }
 
-export interface MenuCapabilitiesInput {
+export interface RenderedImageIdentity {
+	readonly kind: 'local' | 'remote';
+	readonly target: string;
+}
+
+interface MenuCapabilitiesInput {
 	readonly identity: RenderedImageIdentity;
 	readonly ref: ImageRef | null;
 }
 
-export interface PreciseImageOffsetInput {
+interface PreciseImageOffsetInput {
 	readonly coordinatePosition: null | number;
 	readonly domPosition: null | number;
 	readonly refs: readonly Pick<ImageRef, 'end' | 'start'>[];
-}
-
-export interface RenderedImageIdentity {
-	readonly kind: 'local' | 'remote';
-	readonly target: string;
 }
 
 export function findRenderedImageRef(
@@ -138,6 +138,7 @@ export function findRenderedImageRef(
 	return resolveByRenderedOccurrence(candidates, image, root);
 }
 
+/** Exposed for unit tests. */
 export function identityMatchesRef(
 	identity: RenderedImageIdentity,
 	ref: ImageRef

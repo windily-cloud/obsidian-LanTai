@@ -46,15 +46,15 @@ export { findRenderedImageRef } from './resolve-rendered-image.ts';
 
 const IMAGE_SELECTOR = '.workspace-leaf-content[data-type=\'markdown\'] .markdown-source-view img';
 
-export interface ImageContextMenuControllerConstructorParams {
+type ContextAction = 'download' | 'localize' | 'upload';
+
+interface ImageContextMenuControllerConstructorParams {
 	readonly app: App;
 	readonly facade: ImageActionFacade;
 	readonly fileActions: ImageFileActions;
 	readonly linkService: ImageLinkService;
 	readonly plugin: Plugin;
 }
-
-type ContextAction = 'download' | 'localize' | 'upload';
 
 type NativeFileAction =
 	| 'copy-absolute-path'
@@ -183,7 +183,7 @@ export class ImageContextMenuController {
 								.setChecked(ref !== null && this.linkService.getLayout(ref) === layout.key)
 								.onClick(() => {
 									if (!ref) {
-										new Notice('Could not locate the image link in the note.');
+										new Notice(t('notices.couldNotLocateLink'));
 										return;
 									}
 									return this.setLayout(ref, layout.key, resolved.context);
@@ -306,7 +306,7 @@ export class ImageContextMenuController {
 				return;
 			default: {
 				const _exhaustive: never = itemKey;
-				return _exhaustive;
+				void _exhaustive;
 			}
 		}
 	}
@@ -341,27 +341,28 @@ export class ImageContextMenuController {
 					break;
 				case 'localize':
 					if (!resolved.ref) {
-						new Notice('Could not uniquely match this image to a note link.');
+						new Notice(t('notices.couldNotMatchImage'));
 						return;
 					}
 					result = await this.facade.localizeOne(resolved.ref, resolved.context);
 					break;
 				case 'upload':
 					if (!resolved.ref) {
-						new Notice('Could not uniquely match this image to a note link.');
+						new Notice(t('notices.couldNotMatchImage'));
 						return;
 					}
 					result = await this.facade.uploadOne(resolved.ref, resolved.context);
 					break;
 				default: {
 					const _exhaustive: never = action;
-					return _exhaustive;
+					void _exhaustive;
+					return;
 				}
 			}
 			if (!result.ok) {
-				new Notice(result.message ?? 'Image action failed.');
+				new Notice(result.message ?? t('notices.failureError'));
 			} else if (!result.cancelled && action !== 'upload') {
-				new Notice('Image action completed.');
+				new Notice(t('notices.actionCompleted'));
 			}
 		} catch (error) {
 			this.reportError(error);
@@ -380,7 +381,7 @@ export class ImageContextMenuController {
 					return;
 				case 'copy-image':
 					await this.fileActions.copyImage(target, context.noteFilePath);
-					new Notice('Image copied to clipboard.');
+					new Notice(t('notices.imageCopied'));
 					return;
 				case 'copy-obsidian-url':
 					await this.fileActions.copyObsidianUrl(target, context.noteFilePath);
@@ -394,7 +395,7 @@ export class ImageContextMenuController {
 							resolved.ref,
 							this.linkService.formatRemoveEmbed(),
 							context,
-							'The image link changed before it could be removed.'
+							t('notices.conflictRemove')
 						);
 						if (!removed) {
 							return;
@@ -424,7 +425,7 @@ export class ImageContextMenuController {
 				case 'replace': {
 					const replaced = await this.fileActions.replaceContent(target, context.noteFilePath);
 					if (replaced) {
-						new Notice('Image content replaced.');
+						new Notice(t('notices.imageReplaced'));
 					}
 					return;
 				}
@@ -439,7 +440,7 @@ export class ImageContextMenuController {
 					return;
 				default: {
 					const _exhaustive: never = action;
-					return _exhaustive;
+					void _exhaustive;
 				}
 			}
 		} catch (error) {
@@ -457,7 +458,7 @@ export class ImageContextMenuController {
 					&& view.containerEl.contains(image)
 			);
 		if (matches.length !== 1 || !matches[0]) {
-			throw new Error('Could not find the Markdown view for this image.');
+			throw new Error(t('errors.markdownViewNotFound'));
 		}
 		return matches[0];
 	}
@@ -473,7 +474,7 @@ export class ImageContextMenuController {
 				(view): view is MarkdownView => view instanceof MarkdownView && view.file?.path === sourcePath
 			);
 		if (matches.length > 1) {
-			throw new Error('The source note is open in multiple panes; close duplicate panes before editing this image.');
+			throw new Error(t('errors.sourceNoteMultiplePanes'));
 		}
 		return matches[0] ?? null;
 	}
@@ -495,18 +496,18 @@ export class ImageContextMenuController {
 			}
 			event.preventDefault();
 			if (!view.file) {
-				new Notice('Open a Markdown note first.');
+				new Notice(t('notices.openMarkdownNote'));
 				return;
 			}
 			const identity = readRenderedImageIdentity(image);
 			if (!identity) {
-				new Notice('Could not identify this image.');
+				new Notice(t('notices.couldNotIdentifyImage'));
 				return;
 			}
 			const sourcePath = view.file.path;
 			const sourceFile = this.app.vault.getFileByPath(sourcePath);
 			if (!sourceFile) {
-				new Notice('Could not find the source note for this image.');
+				new Notice(t('notices.couldNotFindSourceNote'));
 				return;
 			}
 			const sourceView = this.findOpenSourceView(sourcePath, view);
@@ -556,7 +557,7 @@ export class ImageContextMenuController {
 				resolved.ref,
 				this.linkService.formatRemoveEmbed(),
 				resolved.context,
-				'The image link changed before it could be removed.'
+				t('notices.conflictRemove')
 			);
 		} catch (error) {
 			this.reportError(error);
@@ -577,7 +578,7 @@ export class ImageContextMenuController {
 				resolved.ref,
 				this.linkService.formatResetSize(resolved.ref),
 				resolved.context,
-				'The image link changed before its size could be reset.'
+				t('notices.conflictResetSize')
 			);
 		} catch (error) {
 			this.reportError(error);
@@ -594,7 +595,7 @@ export class ImageContextMenuController {
 				ref,
 				this.linkService.formatLayout(ref, layout),
 				context,
-				'The image link changed before its layout could be updated.'
+				t('notices.conflictLayout')
 			);
 		} catch (error) {
 			this.reportError(error);
@@ -621,7 +622,7 @@ export class ImageContextMenuController {
 		menu.showAtMouseEvent(event);
 	}
 }
-export function findImageSourceRange(
+function findImageSourceRange(
 	image: HTMLImageElement,
 	event: MouseEvent,
 	view: MarkdownView,

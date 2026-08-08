@@ -13,6 +13,8 @@ import {
 } from 'obsidian';
 import { noopAsync } from 'obsidian-dev-utils/function';
 
+import { t } from '../../i18n/index.ts';
+
 interface BookmarkFileItem {
 	readonly path: string;
 	readonly type: 'file';
@@ -71,7 +73,7 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 
 	public constructor(app: App) {
 		super(app);
-		this.setPlaceholder('Move file to...');
+		this.setPlaceholder(t('menu.moveFileToSuggest'));
 	}
 
 	public getItems(): TFolder[] {
@@ -123,7 +125,7 @@ export class ObsidianDesktopFileActions {
 
 	public openDefault(vaultPath: string): Promise<void> {
 		if (typeof this.app.openWithDefaultApp !== 'function') {
-			throw new Error('Open with Default Application is unavailable in this Obsidian version.');
+			throw new Error(t('errors.openWithDefaultUnavailable'));
 		}
 		this.app.openWithDefaultApp(vaultPath);
 		return noopAsync();
@@ -144,7 +146,7 @@ export class ObsidianDesktopFileActions {
 	public async pickReplacementBytes(): Promise<null | Uint8Array> {
 		const dialog = getElectronDialog();
 		const result = await dialog.showOpenDialog({
-			filters: [{ extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], name: 'Images' }],
+			filters: [{ extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], name: t('errors.imagesFilter') }],
 			properties: ['openFile']
 		});
 		if (result.canceled || result.filePaths.length === 0 || !result.filePaths[0]) {
@@ -167,7 +169,7 @@ export class ObsidianDesktopFileActions {
 		const file = this.requireFile(vaultPath);
 		const fileManager = this.app.fileManager as FileManagerWithRenamePrompt;
 		if (typeof fileManager.promptForFileRename !== 'function') {
-			throw new Error('Rename is unavailable in this Obsidian version.');
+			throw new Error(t('errors.renameUnavailable'));
 		}
 		await fileManager.promptForFileRename(file);
 	}
@@ -175,19 +177,19 @@ export class ObsidianDesktopFileActions {
 	public async showInFileList(vaultPath: string): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(vaultPath);
 		if (!file) {
-			throw new Error(`Vault file was not found: ${vaultPath}`);
+			throw new Error(t('errors.vaultFileNotFound', { path: vaultPath }));
 		}
 		const fileExplorer = this.app.internalPlugins
 			.getEnabledPluginById('file-explorer') as FileExplorerPlugin | null;
 		if (!fileExplorer || typeof fileExplorer.revealInFolder !== 'function') {
-			throw new Error('The Obsidian File Explorer is unavailable.');
+			throw new Error(t('errors.fileExplorerUnavailable'));
 		}
 		await fileExplorer.revealInFolder(file);
 	}
 
 	public showInFolder(vaultPath: string): Promise<void> {
 		if (typeof this.app.showInFolder !== 'function') {
-			throw new Error('Show in Finder/File Explorer is unavailable in this Obsidian version.');
+			throw new Error(t('errors.showInFolderUnavailable'));
 		}
 		this.app.showInFolder(vaultPath);
 		return noopAsync();
@@ -197,7 +199,7 @@ export class ObsidianDesktopFileActions {
 		const bookmarks = this.app.internalPlugins
 			.getEnabledPluginById('bookmarks') as BookmarksPluginInstance | null;
 		if (!bookmarks || typeof bookmarks.addItem !== 'function') {
-			throw new Error('The Obsidian Bookmarks plugin is unavailable.');
+			throw new Error(t('errors.bookmarksUnavailable'));
 		}
 		bookmarks.addItem({ path: vaultPath, type: 'file' });
 		return noopAsync();
@@ -206,7 +208,7 @@ export class ObsidianDesktopFileActions {
 	public toSystemPath(vaultPath: string): string {
 		const adapter = this.app.vault.adapter;
 		if (!(adapter instanceof FileSystemAdapter)) {
-			throw new Error('The current vault does not expose a local file-system path.');
+			throw new Error(t('errors.vaultNoLocalPath'));
 		}
 		return adapter.getFullPath(vaultPath);
 	}
@@ -225,7 +227,7 @@ export class ObsidianDesktopFileActions {
 	private requireFile(vaultPath: string): TFile {
 		const file = this.app.vault.getFileByPath(normalizePath(vaultPath));
 		if (!file) {
-			throw new Error(`Vault file was not found: ${vaultPath}`);
+			throw new Error(t('errors.vaultFileNotFound', { path: vaultPath }));
 		}
 		return file;
 	}
@@ -235,7 +237,7 @@ function getElectron(): ElectronModule {
 	const desktopWindow = window as DesktopWindow;
 	const requireModule = desktopWindow.require?.bind(desktopWindow);
 	if (!requireModule) {
-		throw new Error('Electron APIs are unavailable.');
+		throw new Error(t('errors.electronApisUnavailable'));
 	}
 	return requireModule('electron') as ElectronModule;
 }
@@ -244,7 +246,7 @@ function getElectronDialog(): ElectronDialog {
 	const electron = getElectron();
 	const dialog = electron.dialog ?? electron.remote?.dialog;
 	if (!dialog) {
-		throw new Error('Electron dialog APIs are unavailable.');
+		throw new Error(t('errors.electronDialogUnavailable'));
 	}
 	return dialog;
 }
@@ -253,7 +255,7 @@ function getElectronFs(): ElectronFs {
 	const desktopWindow = window as DesktopWindow;
 	const requireModule = desktopWindow.require?.bind(desktopWindow);
 	if (!requireModule) {
-		throw new Error('Electron file APIs are unavailable.');
+		throw new Error(t('errors.electronFileUnavailable'));
 	}
 	return requireModule('fs/promises') as ElectronFs;
 }

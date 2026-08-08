@@ -14,6 +14,7 @@ import type {
 	StorageProvider
 } from './storage-profile.ts';
 
+import { t } from '../../../i18n/index.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
@@ -30,24 +31,16 @@ interface S3SectionContext extends SettingsSectionContext {
 	toggleProfileExpanded(profileId: string): void;
 }
 
-const PROVIDER_NAMES: Record<StorageProvider, string> = {
-	alibaba: 'Alibaba Cloud OSS',
-	r2: 'Cloudflare R2',
-	s3: 'AWS S3',
-	s3Compatible: 'S3-compatible custom',
-	tencent: 'Tencent Cloud COS'
-};
-
 export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext): void {
-	addSectionHeading(containerEl, 'S3', 'cloud');
+	addSectionHeading(containerEl, t('settings.s3'), 'cloud');
 
 	const profiles = ctx.registry.list();
 	new Setting(containerEl)
-		.setName('S3 storage profiles')
+		.setName(t('settings.s3Profiles'))
 		.addDropdown((dropdown) => {
-			dropdown.addOption('', 'Select profile');
+			dropdown.addOption('', t('settings.selectProfile'));
 			for (const profile of profiles) {
-				dropdown.addOption(profile.id, profile.name || 'Untitled profile');
+				dropdown.addOption(profile.id, profile.name || t('settings.untitledProfile'));
 			}
 			dropdown
 				.setValue(ctx.settings.activeProfileId ?? '')
@@ -62,7 +55,7 @@ export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext
 				});
 		})
 		.addButton((button) => {
-			button.setButtonText('New').setCta().onClick(() => {
+			button.setButtonText(t('settings.new')).setCta().onClick(() => {
 				const profile = createProfile();
 				ctx.registry.add(profile);
 				ctx.expandedProfileIds.add(profile.id);
@@ -72,7 +65,7 @@ export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext
 
 	if (profiles.length === 0) {
 		containerEl.createEl('p', {
-			text: 'Create a storage profile to enable uploads.'
+			text: t('settings.emptyProfiles')
 		});
 	} else {
 		for (const profile of profiles) {
@@ -81,8 +74,8 @@ export function displayS3Section(containerEl: HTMLElement, ctx: S3SectionContext
 	}
 
 	new Setting(containerEl)
-		.setName('Delete source after upload')
-		.setDesc('Move the local source image to the Obsidian trash after a successful upload.')
+		.setName(t('settings.deleteSourceAfterUpload'))
+		.setDesc(t('settings.deleteSourceAfterUploadDesc'))
 		.addToggle((toggle) => {
 			toggle
 				.setValue(ctx.settings.deleteSourceAfterUpload)
@@ -100,7 +93,7 @@ function createProfile(): StorageProfile {
 		accessKeyIdSecretName: `lantai-${id}-access-key-id`,
 		bucket: '',
 		id,
-		name: 'New profile',
+		name: t('settings.newProfile'),
 		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 		objectKeyTemplate: 'images/${originalName}.${ext}',
 		provider: 's3',
@@ -115,7 +108,7 @@ function displayObjectKeyTemplateField(
 	draft: StorageProfile
 ): void {
 	const setting = new Setting(parentEl)
-		.setName('Object key template')
+		.setName(t('settings.fieldObjectKeyTemplate'))
 		.setDesc(objectKeyTemplateDesc(ctx, draft.objectKeyTemplate))
 		.setClass('lantai-path-template');
 	attachTokenInfoButton(setting.nameEl);
@@ -135,14 +128,14 @@ function displayProfileBody(
 	const draft = ctx.getProfileDraft(profile);
 	const isActive = ctx.settings.activeProfileId === profile.id;
 
-	new Setting(parentEl).setName('Profile name').addText((text) => {
+	new Setting(parentEl).setName(t('settings.profileName')).addText((text) => {
 		text.setValue(draft.name).onChange((value) => {
 			draft.name = value;
 		});
 	});
-	new Setting(parentEl).setName('Provider').addDropdown((dropdown) => {
-		for (const provider of Object.keys(PROVIDER_NAMES) as StorageProvider[]) {
-			dropdown.addOption(provider, PROVIDER_NAMES[provider]);
+	new Setting(parentEl).setName(t('settings.provider')).addDropdown((dropdown) => {
+		for (const provider of Object.keys(providerNames()) as StorageProvider[]) {
+			dropdown.addOption(provider, providerNames()[provider]);
 		}
 		dropdown.setValue(draft.provider).onChange((value) => {
 			draft.provider = value as StorageProvider;
@@ -156,7 +149,7 @@ function displayProfileBody(
 	const actions = new Setting(parentEl);
 	if (!isActive) {
 		actions.addButton((button) => {
-			button.setButtonText('Set as active').onClick(() => {
+			button.setButtonText(t('settings.setAsActive')).onClick(() => {
 				ctx.registry.setActive(profile.id);
 				ctx.persistAndRedisplay();
 			});
@@ -164,7 +157,7 @@ function displayProfileBody(
 	}
 	actions.addButton((button) => {
 		button
-			.setButtonText('Delete')
+			.setButtonText(t('settings.delete'))
 			.setWarning()
 			.onClick(() => {
 				ctx.expandedProfileIds.delete(profile.id);
@@ -174,7 +167,7 @@ function displayProfileBody(
 			});
 	});
 	actions.addButton((button) => {
-		button.setButtonText('Save').setCta().onClick(() => {
+		button.setButtonText(t('settings.save')).setCta().onClick(() => {
 			ctx.applyProfileDraft(profile.id);
 			ctx.persistAndRedisplay();
 		});
@@ -199,9 +192,9 @@ function displayProfileCard(
 	});
 
 	const header = new Setting(cardEl)
-		.setName(profile.name || 'Untitled profile')
+		.setName(profile.name || t('settings.untitledProfile'))
 		.setDesc(
-			[PROVIDER_NAMES[profile.provider], isActive ? 'Active' : null]
+			[providerNames()[profile.provider], isActive ? t('settings.active') : null]
 				.filter(Boolean)
 				.join(' · ')
 		)
@@ -221,7 +214,7 @@ function displayProfileCard(
 	header.addExtraButton((button) => {
 		button
 			.setIcon(isExpanded ? 'chevron-down' : 'chevron-right')
-			.setTooltip(isExpanded ? 'Collapse' : 'Expand')
+			.setTooltip(isExpanded ? t('settings.collapse') : t('settings.expand'))
 			.onClick(() => {
 				ctx.toggleProfileExpanded(profile.id);
 			});
@@ -249,7 +242,7 @@ function displayProfileField(
 	}
 	const setting = new Setting(parentEl)
 		.setName(field.label)
-		.setDesc(field.required ? 'Required.' : 'Optional.');
+		.setDesc(field.required ? t('settings.required') : t('settings.optional'));
 	if (field.key === 'forcePathStyle') {
 		setting.addToggle((toggle) => {
 			toggle.setValue(draft.forcePathStyle ?? true).onChange((value) => {
@@ -273,7 +266,7 @@ function displaySecretField(
 ): void {
 	new Setting(parentEl)
 		.setName(field.label)
-		.setDesc(field.required ? 'Required.' : 'Optional.')
+		.setDesc(field.required ? t('settings.required') : t('settings.optional'))
 		.addComponent((el) =>
 			new SecretComponent(ctx.app, el)
 				.setValue(readStringField(draft, field.key))
@@ -289,11 +282,21 @@ function objectKeyTemplateDesc(ctx: S3SectionContext, template: string): string 
 			ctx: previewContext(),
 			template
 		});
-		return `Preview: ${preview}`;
+		return t('settings.preview', { path: preview });
 	} catch (error) {
-		const message = error instanceof Error ? error.message : 'Invalid template';
-		return `Invalid template: ${message}`;
+		const message = error instanceof Error ? error.message : t('settings.invalidTemplate');
+		return t('settings.invalidTemplateWithMessage', { message });
 	}
+}
+
+function providerNames(): Record<StorageProvider, string> {
+	return {
+		alibaba: t('settings.providerAlibaba'),
+		r2: t('settings.providerR2'),
+		s3: t('settings.providerS3'),
+		s3Compatible: t('settings.providerS3Compatible'),
+		tencent: t('settings.providerTencent')
+	};
 }
 
 function readStringField(profile: StorageProfile, key: StorageProfileFieldKey): string {

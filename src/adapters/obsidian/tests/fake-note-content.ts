@@ -5,6 +5,7 @@ import type {
 	TextEdit
 } from '../note-content.obsidian.ts';
 
+/** Test double for NoteContent. */
 export class FakeNoteContent implements NoteContent {
 	private content: string;
 

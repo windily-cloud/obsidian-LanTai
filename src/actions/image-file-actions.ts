@@ -2,7 +2,9 @@ import type { SystemImageClipboard } from '../adapters/desktop/system-image-clip
 import type { HttpFetch } from '../adapters/obsidian/http-fetch.obsidian.ts';
 import type { ImageTarget } from '../link/image-ref.ts';
 
-export interface ImageFileActionsConstructorParams {
+import { t } from '../i18n/index.ts';
+
+interface ImageFileActionsConstructorParams {
 	getObsidianUrl(vaultPath: string): string;
 	readonly http: HttpFetch;
 	readonly imageClipboard: Pick<SystemImageClipboard, 'copy'>;
@@ -114,11 +116,11 @@ export class ImageFileActions {
 
 	private resolveLocalPath(target: ImageTarget, noteFilePath: string): string {
 		if (target.isRemote) {
-			throw new Error('This action requires a local vault file.');
+			throw new Error(t('errors.requiresLocalVaultFile'));
 		}
 		const path = this.params.resolveVaultPath(target.target, noteFilePath);
 		if (!path) {
-			throw new Error('Local image was not found.');
+			throw new Error(t('errors.localImageNotFoundPeriod'));
 		}
 		return path;
 	}

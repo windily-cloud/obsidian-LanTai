@@ -10,6 +10,5 @@ getNanoStagedConfig();
 export const config: Record<string, string[]> = {
 	'!(demo-vault)*': ['npm run spellcheck --'],
 	'!(demo-vault)*.{ts,tsx,mts}': ['npm run format --'],
-	'!(demo-vault)*.md': ['npm run lint:md:fix --'],
 	'!(templates|demo-vault)*.{ts,tsx,mts}': ['npm run lint:fix --']
 };

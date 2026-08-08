@@ -2,7 +2,9 @@ import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type { VaultBinary } from '../vault-binary.obsidian.ts';
 
+/** Test double for VaultBinary. */
 export class FakeVaultBinary implements VaultBinary {
+	/** Exposed for unit tests. */
 	public readonly trashed: string[] = [];
 	private readonly files: Map<string, Uint8Array>;
 

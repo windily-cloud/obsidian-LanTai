@@ -1,13 +1,9 @@
-export interface ObsidianSaveDialogConstructorOptions {
-	readonly pickPath?: SavePathPicker;
-}
+import { t } from '../../i18n/index.ts';
 
 export interface SaveDialog {
 	pickSavePath(defaultFileName: string): Promise<null | string>;
 	writeOsFile(path: string, bytes: Uint8Array): Promise<void>;
 }
-
-export type SavePathPicker = (defaultFileName: string) => null | string;
 
 interface ElectronDialog {
 	showSaveDialogSync(options: ElectronSaveDialogOptions): string | undefined;
@@ -38,6 +34,12 @@ interface NodeFileSystemPromises {
 	writeFile(path: string, bytes: Uint8Array): Promise<void>;
 }
 
+interface ObsidianSaveDialogConstructorOptions {
+	readonly pickPath?: SavePathPicker;
+}
+
+type SavePathPicker = (defaultFileName: string) => null | string;
+
 export class ObsidianSaveDialog implements SaveDialog {
 	private readonly pickPath: (defaultFileName: string) => null | string;
 
@@ -60,7 +62,7 @@ function getElectronRequire(): NonNullable<ElectronWindow['require']> {
 	const electronWindow = window as ElectronWindow;
 	const requireModule = electronWindow.require?.bind(electronWindow);
 	if (!requireModule) {
-		throw new Error('Electron APIs are unavailable');
+		throw new Error(t('errors.electronApisUnavailableBare'));
 	}
 	return requireModule.bind(electronWindow);
 }
@@ -75,7 +77,7 @@ function pickWithElectron(defaultFileName: string): null | string {
 	}
 	const dialog = electron.dialog ?? electron.remote?.dialog;
 	if (!dialog) {
-		throw new Error('Electron save dialog is unavailable');
+		throw new Error(t('errors.electronSaveDialogUnavailable'));
 	}
 	return dialog.showSaveDialogSync({ defaultPath: defaultFileName }) ?? null;
 }

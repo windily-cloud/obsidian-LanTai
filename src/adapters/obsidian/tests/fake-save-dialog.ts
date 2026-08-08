@@ -2,11 +2,13 @@ import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type { SaveDialog } from '../save-dialog.obsidian.ts';
 
-export interface FakeSaveDialogConstructorOptions {
+interface FakeSaveDialogConstructorOptions {
 	readonly picked?: null | string;
 }
 
+/** Test double for SaveDialog. */
 export class FakeSaveDialog implements SaveDialog {
+	/** Exposed for unit tests. */
 	public readonly written = new Map<string, Uint8Array>();
 	private readonly picked: null | string;
 

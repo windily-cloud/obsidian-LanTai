@@ -283,3 +283,38 @@
 		}
 	}
 }
+
+/* Image layout decorations: left | right | center in alt */
+$lantai-image-layouts: (
+	'left': 0 auto,
+	'right': auto 0,
+	'center': auto
+);
+
+@mixin lantai-alt-layout($layout) {
+	&[alt='#{$layout}'],
+	&[alt^='#{$layout}|'],
+	&[alt$='|#{$layout}'],
+	&[alt*='|#{$layout}|'] {
+		@content;
+	}
+}
+
+@each $layout, $margin-inline in $lantai-image-layouts {
+	:is(.markdown-source-view, .markdown-preview-view, .markdown-rendered) {
+		.internal-embed.image-embed {
+			@include lantai-alt-layout($layout) {
+				display: block;
+				margin-inline: $margin-inline;
+				width: fit-content;
+			}
+		}
+
+		img {
+			@include lantai-alt-layout($layout) {
+				display: block;
+				margin-inline: $margin-inline;
+			}
+		}
+	}
+}

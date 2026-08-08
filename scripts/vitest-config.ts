@@ -2,7 +2,6 @@ import { defineConfig } from 'vitest/config';
 
 const SHARED_EXCLUDE = ['node_modules', 'dist'];
 const BIG_TIMEOUT_IN_MILLISECONDS = 30_000;
-const ANDROID_TIMEOUT_IN_MILLISECONDS = 60_000;
 const PERFORMANCE_TIMEOUT_IN_MILLISECONDS = 600_000;
 const HOOK_TIMEOUT_MULTIPLIER = 4;
 
@@ -77,25 +76,6 @@ export const config = defineConfig({
 					name: 'integration-tests:desktop-performance',
 					setupFiles: ['obsidian-integration-testing/vitest-setup'],
 					testTimeout: PERFORMANCE_TIMEOUT_IN_MILLISECONDS
-				}
-			},
-			{
-				test: {
-					environment: 'node',
-					environmentOptions: {
-						obsidianTransport: {
-							appiumUrl: 'http://localhost:4723',
-							avdName: 'obsidian_test',
-							type: 'obsidian-android-appium'
-						}
-					},
-					fileParallelism: false,
-					globalSetup: ['obsidian-integration-testing/vitest-global-setup-plugin'],
-					hookTimeout: ANDROID_TIMEOUT_IN_MILLISECONDS * HOOK_TIMEOUT_MULTIPLIER,
-					include: ['src/**/*.android.integration.test.ts'],
-					name: 'integration-tests:android',
-					setupFiles: ['obsidian-integration-testing/vitest-setup'],
-					testTimeout: ANDROID_TIMEOUT_IN_MILLISECONDS
 				}
 			}
 		]

@@ -6,12 +6,13 @@ import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts'
 import type { ObjectStorageBrowser } from '../storage/object-storage.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
 
+import { t } from '../i18n/index.ts';
 import {
 	STORAGE_GALLERY_VIEW_TYPE,
 	StorageGalleryView
 } from './storage-gallery-view.ts';
 
-export interface RegisterStorageGalleryParams {
+interface RegisterStorageGalleryParams {
 	createStorage(profile: StorageProfile, secrets: StorageSecrets): Promise<ObjectStorageBrowser>;
 	readonly findReferences: RemoteImageReferenceFinder;
 	getSecret(name: string): null | string;
@@ -31,7 +32,7 @@ export function registerStorageGallery(params: RegisterStorageGalleryParams): vo
 			settings: params.settings
 		}));
 
-	params.plugin.addRibbonIcon('cloud', 'Browse S3 images', () => {
+	params.plugin.addRibbonIcon('cloud', t('gallery.browseRibbon'), () => {
 		openStorageGallery(params.plugin).catch((error: unknown) => {
 			console.error('Failed to open S3 image gallery', error);
 		});

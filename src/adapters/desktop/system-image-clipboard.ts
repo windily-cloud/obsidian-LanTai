@@ -1,7 +1,4 @@
-export interface SystemImageClipboardConstructorOptions {
-	createFromBuffer?(buffer: Buffer): ElectronNativeImage;
-	writeImage?(image: ElectronNativeImage): void;
-}
+import { t } from '../../i18n/index.ts';
 
 interface DesktopWindow extends Window {
 	require?(moduleName: string): unknown;
@@ -24,6 +21,11 @@ interface ElectronNativeImageFactory {
 	createFromBuffer(buffer: Buffer): ElectronNativeImage;
 }
 
+interface SystemImageClipboardConstructorOptions {
+	createFromBuffer?(buffer: Buffer): ElectronNativeImage;
+	writeImage?(image: ElectronNativeImage): void;
+}
+
 export class SystemImageClipboard {
 	private readonly createFromBuffer: ((buffer: Buffer) => ElectronNativeImage) | undefined;
 	private readonly writeImage: ((image: ElectronNativeImage) => void) | undefined;
@@ -40,11 +42,11 @@ export class SystemImageClipboard {
 		const writeImage = this.writeImage
 			?? electron?.clipboard.writeImage.bind(electron.clipboard);
 		if (!createFromBuffer || !writeImage) {
-			throw new Error('Electron clipboard APIs are unavailable.');
+			throw new Error(t('errors.electronClipboardUnavailable'));
 		}
 		const image = createFromBuffer(Buffer.from(bytes));
 		if (image.isEmpty()) {
-			throw new Error('The remote content could not be decoded as an image.');
+			throw new Error(t('errors.remoteNotDecodableAsImage'));
 		}
 		writeImage(image);
 	}
@@ -54,7 +56,7 @@ function getElectron(): ElectronModule {
 	const desktopWindow = window as DesktopWindow;
 	const requireModule = desktopWindow.require?.bind(desktopWindow);
 	if (!requireModule) {
-		throw new Error('Electron clipboard APIs are unavailable.');
+		throw new Error(t('errors.electronClipboardUnavailable'));
 	}
 	return requireModule('electron') as ElectronModule;
 }

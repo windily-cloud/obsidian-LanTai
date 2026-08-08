@@ -1,6 +1,6 @@
 import type { App } from 'obsidian';
 
-export interface ObsidianSecretStoreConstructorParams {
+interface ObsidianSecretStoreConstructorParams {
 	readonly app: App;
 }
 

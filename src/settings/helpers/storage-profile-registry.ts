@@ -14,6 +14,7 @@ export class StorageProfileRegistry {
 		}
 	}
 
+	/** Exposed for unit tests. */
 	public assertReadyForUpload(profile: StorageProfile): void {
 		if (!profile.publicBaseUrl.trim()) {
 			throw new Error('publicBaseUrl is required');
@@ -29,6 +30,7 @@ export class StorageProfileRegistry {
 		}
 	}
 
+	/** Exposed for unit tests. */
 	public getActive(): null | StorageProfile {
 		if (!this.settings.activeProfileId) {
 			return null;
@@ -58,13 +60,5 @@ export class StorageProfileRegistry {
 			throw new Error(`Unknown profile id: ${id}`);
 		}
 		this.settings.activeProfileId = id;
-	}
-
-	public update(profile: StorageProfile): void {
-		const index = this.settings.profiles.findIndex((p) => p.id === profile.id);
-		if (index === -1) {
-			throw new Error(`Unknown profile id: ${profile.id}`);
-		}
-		this.settings.profiles[index] = profile;
 	}
 }

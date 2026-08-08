@@ -2,6 +2,7 @@ import { Setting } from 'obsidian';
 
 import type { SettingsSectionContext } from './settings-section-context.ts';
 
+import { t } from '../../i18n/index.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
@@ -12,15 +13,15 @@ export function displayGeneralSection(
 	containerEl: HTMLElement,
 	ctx: SettingsSectionContext
 ): void {
-	addSectionHeading(containerEl, 'General', 'settings');
+	addSectionHeading(containerEl, t('settings.general'), 'settings');
 
 	new Setting(containerEl)
-		.setName('Attachment base')
-		.setDesc('Only affects paths managed by this plugin.')
+		.setName(t('settings.attachmentBase'))
+		.setDesc(t('settings.attachmentBaseDesc'))
 		.addDropdown((dropdown) => {
 			dropdown
-				.addOption('note', 'Current note folder')
-				.addOption('vault', 'Vault root')
+				.addOption('note', t('settings.currentNoteFolder'))
+				.addOption('vault', t('settings.vaultRoot'))
 				.setValue(ctx.settings.attachmentBase)
 				.onChange((value) => {
 					ctx.settings.attachmentBase = value as 'note' | 'vault';
@@ -29,7 +30,7 @@ export function displayGeneralSection(
 		});
 
 	const pathSetting = new Setting(containerEl)
-		.setName('Local path template')
+		.setName(t('settings.localPathTemplate'))
 		.setDesc(localPathTemplateDesc(ctx, ctx.settings.localPathTemplate))
 		.setClass('lantai-path-template');
 	attachTokenInfoButton(pathSetting.nameEl);
@@ -42,12 +43,12 @@ export function displayGeneralSection(
 	});
 
 	new Setting(containerEl)
-		.setName('Local image link style')
-		.setDesc('Remote image URLs always use Markdown syntax.')
+		.setName(t('settings.linkStyle'))
+		.setDesc(t('settings.linkStyleDesc'))
 		.addDropdown((dropdown) => {
 			dropdown
-				.addOption('wiki', 'Wiki')
-				.addOption('markdown', 'Markdown')
+				.addOption('wiki', t('settings.wiki'))
+				.addOption('markdown', t('settings.markdown'))
 				.setValue(ctx.settings.linkStyle)
 				.onChange((value) => {
 					ctx.settings.linkStyle = value as 'markdown' | 'wiki';
@@ -64,9 +65,9 @@ function localPathTemplateDesc(ctx: SettingsSectionContext, template: string): s
 			noteFolderPath: 'Notes',
 			template
 		});
-		return `Preview: ${preview}`;
+		return t('settings.preview', { path: preview });
 	} catch (error) {
-		const message = error instanceof Error ? error.message : 'Invalid template';
-		return `Invalid template: ${message}`;
+		const message = error instanceof Error ? error.message : t('settings.invalidTemplate');
+		return t('settings.invalidTemplateWithMessage', { message });
 	}
 }

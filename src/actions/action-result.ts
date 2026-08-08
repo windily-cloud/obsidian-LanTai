@@ -1,19 +1,19 @@
-export interface ActionCancelled {
+export type ActionResult = ActionCancelled | ActionFailure | ActionSuccess;
+
+interface ActionCancelled {
 	cancelled: true;
 	ok: true;
 }
 
-export interface ActionFailure {
+interface ActionFailure {
 	message?: string;
 	ok: false;
 	reason: ActionFailureReason;
 }
 
-export type ActionFailureReason = 'conflict' | 'error' | 'missing';
+type ActionFailureReason = 'conflict' | 'error' | 'missing';
 
-export type ActionResult = ActionCancelled | ActionFailure | ActionSuccess;
-
-export interface ActionSuccess {
+interface ActionSuccess {
 	cancelled?: false;
 	ok: true;
 }

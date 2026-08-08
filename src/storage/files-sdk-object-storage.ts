@@ -14,6 +14,7 @@ import type {
 	ObjectStorageListResult
 } from './object-storage.ts';
 
+/** Exposed for unit tests. */
 export interface FilesClient {
 	delete(key: string): Promise<void>;
 	exists(key: string): Promise<boolean>;
@@ -23,7 +24,7 @@ export interface FilesClient {
 	url(key: string): Promise<string>;
 }
 
-export interface FilesSdkObjectStorageConstructorParams {
+interface FilesSdkObjectStorageConstructorParams {
 	readonly files: FilesClient;
 }
 

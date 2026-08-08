@@ -1,4 +1,94 @@
 export const en = {
+	commands: {
+		convertToMarkdown: 'Convert current note images to Markdown links',
+		convertToWiki: 'Convert current note images to Wiki links',
+		downloadCurrent: 'Download current image',
+		localizeActionName: 'Localization',
+		localizeAll: 'Localize all remote images in current note',
+		localizeCurrent: 'Localize current image',
+		uploadActionName: 'Upload',
+		uploadAll: 'Upload all local images in current note',
+		uploadCurrent: 'Upload current image'
+	},
+	errors: {
+		accessKeysMustDiffer:
+			'Access Key ID and Secret Access Key must use different secrets.',
+		accessKeysSameValue:
+			'Access Key ID and Secret Access Key resolve to the same value. Bind different secrets.',
+		alreadyLocal: 'Image is already local',
+		alreadyRemote: 'Image is already remote',
+		bookmarksUnavailable: 'The Obsidian Bookmarks plugin is unavailable.',
+		copyFilePlatformOnly: 'Copy File is supported only on macOS and Windows.',
+		desktopSystemApisUnavailable: 'Desktop system APIs are unavailable.',
+		electronApisUnavailable: 'Electron APIs are unavailable.',
+		electronApisUnavailableBare: 'Electron APIs are unavailable',
+		electronClipboardUnavailable: 'Electron clipboard APIs are unavailable.',
+		electronDialogUnavailable: 'Electron dialog APIs are unavailable.',
+		electronFileUnavailable: 'Electron file APIs are unavailable.',
+		electronSaveDialogUnavailable: 'Electron save dialog is unavailable',
+		fileExplorerUnavailable: 'The Obsidian File Explorer is unavailable.',
+		galleryProfileChanged:
+			'Storage profile or search changed. Open the delete menu again.',
+		imageActionFailed: 'Image action failed.',
+		imagesFilter: 'Images',
+		linkChangedBeforeLayout:
+			'The image link changed before its layout could be updated.',
+		linkChangedBeforeLocalize:
+			'The image link changed before localization started.',
+		linkChangedBeforeUpdate: 'The image link changed before it could be updated.',
+		linkChangedBeforeUpload: 'The image link changed before upload started.',
+		localImageNotFound: 'Local image was not found',
+		localImageNotFoundPeriod: 'Local image was not found.',
+		markdownViewNotFound: 'Could not find the Markdown view for this image.',
+		noActiveStorageProfile: 'No active storage profile',
+		noImageSource: 'No image source',
+		openWithDefaultUnavailable:
+			'Open with Default Application is unavailable in this Obsidian version.',
+		publicBaseUrlRequired: 'Public Base URL is required',
+		remoteNotDecodableAsImage:
+			'The remote content could not be decoded as an image.',
+		renameUnavailable: 'Rename is unavailable in this Obsidian version.',
+		requiresLocalVaultFile: 'This action requires a local vault file.',
+		savedButLinkChanged:
+			'Image saved, but the note link changed before it could be updated.',
+		showInFolderUnavailable:
+			'Show in Finder/File Explorer is unavailable in this Obsidian version.',
+		sourceNoteMultiplePanes:
+			'The source note is open in multiple panes; close duplicate panes before editing this image.',
+		storageAuthFailed:
+			'Storage authorization failed. Check Access Key ID, Secret Access Key, bucket, and region.',
+		storageError: 'Storage error ({code}).',
+		storageErrorWithMessage: '{code}: {message}',
+		storageSecretsMissing: 'Storage profile secrets are missing',
+		uploadedButLinkChanged:
+			'Image uploaded, but the note link changed before it could be updated.',
+		vaultFileNotFound: 'Vault file was not found: {path}',
+		vaultNoLocalPath:
+			'The current vault does not expose a local file-system path.',
+		vaultPathAlreadyExists: 'Vault path already exists: {path}'
+	},
+	gallery: {
+		browseRibbon: 'Browse S3 images',
+		cancel: 'Cancel',
+		delete: 'Delete',
+		deletedNotice: 'S3 image deleted',
+		deleteMenu: 'Delete S3 image',
+		deleteTitle: 'Delete S3 image?',
+		loading: 'Loading...',
+		masonryAria: 'Masonry view',
+		noImages: 'No images found',
+		noMatching: 'No matching images',
+		noProfiles: 'No storage profiles',
+		permanentlyDeletes:
+			'This permanently deletes {key} from object storage.',
+		profileAria: 'Gallery storage profile',
+		referencedBy: 'Referenced by {count} note(s):',
+		searchPlaceholder: 'Search object keys...',
+		switchToCard: 'Switch to card view',
+		switchToMasonry: 'Switch to masonry view',
+		untitledProfile: 'Untitled profile',
+		viewTitle: 'S3 images'
+	},
 	menu: {
 		copyAbsolutePath: 'Copy absolute path',
 		copyImage: 'Copy image',
@@ -13,6 +103,7 @@ export const en = {
 		layoutRight: 'Right',
 		localizeImage: 'Localize image',
 		moveFileTo: 'Move to...',
+		moveFileToSuggest: 'Move file to...',
 		openInNewTab: 'Open in new tab',
 		openInNewTabGroup: 'Open in new tab group',
 		openInNewWindow: 'Open in new window',
@@ -25,5 +116,89 @@ export const en = {
 		showInFolder: 'Show in system explorer',
 		star: 'Add to bookmarks',
 		uploadImage: 'Upload image'
+	},
+	notices: {
+		actionCompleted: 'Image action completed.',
+		batchFinished:
+			'{action} finished: {succeeded} succeeded, {failed} failed.',
+		conflictLayout:
+			'The image link changed before its layout could be updated.',
+		conflictRemove: 'The image link changed before it could be removed.',
+		conflictResetSize:
+			'The image link changed before its size could be reset.',
+		couldNotFindSourceNote: 'Could not find the source note for this image.',
+		couldNotIdentifyImage: 'Could not identify this image.',
+		couldNotLocateLink: 'Could not locate the image link in the note.',
+		couldNotMatchImage: 'Could not uniquely match this image to a note link.',
+		downloadCompleted: 'Download completed.',
+		failureConflict: 'Target already exists; nothing was overwritten.',
+		failureError: 'Image action failed.',
+		failureMissing: 'Required image or configuration was not found.',
+		imageCopied: 'Image copied to clipboard.',
+		imageReplaced: 'Image content replaced.',
+		imagesProcessed: '{count} image(s) processed.',
+		localizeCompleted: 'Localize completed.',
+		openMarkdownNote: 'Open a Markdown note first.',
+		placeCursorOnImage: 'Place the cursor on an image link first.'
+	},
+	settings: {
+		active: 'Active',
+		attachmentBase: 'Attachment base',
+		attachmentBaseDesc: 'Only affects paths managed by this plugin.',
+		collapse: 'Collapse',
+		currentNoteFolder: 'Current note folder',
+		delete: 'Delete',
+		deleteSourceAfterUpload: 'Delete source after upload',
+		deleteSourceAfterUploadDesc:
+			'Move the local source image to the Obsidian trash after a successful upload.',
+		emptyProfiles: 'Create a storage profile to enable uploads.',
+		expand: 'Expand',
+		fieldAccessKeyId: 'Access Key ID',
+		fieldAccountId: 'Account ID',
+		fieldBucket: 'Bucket',
+		fieldEndpoint: 'Endpoint',
+		fieldForcePathStyle: 'Force Path Style',
+		fieldObjectKeyTemplate: 'Object key template',
+		fieldPublicBaseUrl: 'Public Base URL',
+		fieldRegion: 'Region',
+		fieldSecretAccessKey: 'Secret Access Key',
+		general: 'General',
+		invalidTemplate: 'Invalid template',
+		invalidTemplateWithMessage: 'Invalid template: {message}',
+		linkStyle: 'Local image link style',
+		linkStyleDesc: 'Remote image URLs always use Markdown syntax.',
+		localPathTemplate: 'Local path template',
+		markdown: 'Markdown',
+		new: 'New',
+		newProfile: 'New profile',
+		optional: 'Optional.',
+		preview: 'Preview: {path}',
+		profileName: 'Profile name',
+		provider: 'Provider',
+		providerAlibaba: 'Alibaba Cloud OSS',
+		providerR2: 'Cloudflare R2',
+		providerS3: 'AWS S3',
+		providerS3Compatible: 'S3-compatible custom',
+		providerTencent: 'Tencent Cloud COS',
+		required: 'Required.',
+		s3: 'S3',
+		s3Profiles: 'S3 storage profiles',
+		save: 'Save',
+		selectProfile: 'Select profile',
+		setAsActive: 'Set as active',
+		/* eslint-disable no-template-curly-in-string -- token docs shown in UI tooltip */
+		tokenDate: '${date} — Date (YYYY-MM-DD; :format)',
+		tokenExt: '${ext} — Image extension',
+		tokenNoteFileName: '${noteFileName} — Note name (no ext)',
+		tokenNoteFilePath: '${noteFilePath} — Note path (no ext)',
+		tokenNoteFolderName: '${noteFolderName} — Parent folder name',
+		tokenNoteFolderPath: '${noteFolderPath} — Parent folder path',
+		tokenOriginalName: '${originalName} — Image name (no ext)',
+		tokenRandom: '${random} — Random chars (:length)',
+		tokenUuid: '${uuid} — UUID without hyphens',
+		/* eslint-enable no-template-curly-in-string -- token docs shown in UI tooltip */
+		untitledProfile: 'Untitled profile',
+		vaultRoot: 'Vault root',
+		wiki: 'Wiki'
 	}
 } as const;

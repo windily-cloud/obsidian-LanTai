@@ -1,5 +1,7 @@
 import type { StorageProvider } from '../sections/s3/storage-profile.ts';
 
+import { t } from '../../i18n/index.ts';
+
 export type StorageProfileFieldKey =
 	| 'accessKeyIdSecretName'
 	| 'accountId'
@@ -22,13 +24,13 @@ function credentialFields(): StorageProviderField[] {
 	return [
 		{
 			key: 'accessKeyIdSecretName',
-			label: 'Access Key ID',
+			label: t('settings.fieldAccessKeyId'),
 			required: true,
 			secret: true
 		},
 		{
 			key: 'secretAccessKeySecretName',
-			label: 'Secret Access Key',
+			label: t('settings.fieldSecretAccessKey'),
 			required: true,
 			secret: true
 		}
@@ -37,27 +39,27 @@ function credentialFields(): StorageProviderField[] {
 
 function fieldsFor(provider: StorageProvider): StorageProviderField[] {
 	const head: StorageProviderField[] = [
-		{ key: 'bucket', label: 'Bucket', required: true },
-		{ key: 'publicBaseUrl', label: 'Public Base URL', required: true }
+		{ key: 'bucket', label: t('settings.fieldBucket'), required: true },
+		{ key: 'publicBaseUrl', label: t('settings.fieldPublicBaseUrl'), required: true }
 	];
 	const tail: StorageProviderField[] = [
 		...credentialFields(),
-		{ key: 'objectKeyTemplate', label: 'Object key template', required: true }
+		{ key: 'objectKeyTemplate', label: t('settings.fieldObjectKeyTemplate'), required: true }
 	];
 
 	switch (provider) {
 		case 'alibaba':
 		case 's3':
 		case 'tencent':
-			return [...head, { key: 'region', label: 'Region', required: true }, ...tail];
+			return [...head, { key: 'region', label: t('settings.fieldRegion'), required: true }, ...tail];
 		case 'r2':
-			return [...head, { key: 'accountId', label: 'Account ID', required: true }, ...tail];
+			return [...head, { key: 'accountId', label: t('settings.fieldAccountId'), required: true }, ...tail];
 		case 's3Compatible':
 			return [
 				...head,
-				{ key: 'endpoint', label: 'Endpoint', required: true },
-				{ key: 'region', label: 'Region', required: false },
-				{ key: 'forcePathStyle', label: 'Force Path Style', required: false },
+				{ key: 'endpoint', label: t('settings.fieldEndpoint'), required: true },
+				{ key: 'region', label: t('settings.fieldRegion'), required: false },
+				{ key: 'forcePathStyle', label: t('settings.fieldForcePathStyle'), required: false },
 				...tail
 			];
 		default: {

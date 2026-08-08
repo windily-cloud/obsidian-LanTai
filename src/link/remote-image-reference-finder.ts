@@ -10,7 +10,7 @@ export interface RemoteImageReference {
 	title: string;
 }
 
-export interface RemoteImageReferenceFinderConstructorParams {
+interface RemoteImageReferenceFinderConstructorParams {
 	readonly app: App;
 	readonly parser: ImageLinkParser;
 }

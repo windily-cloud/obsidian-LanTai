@@ -2,9 +2,7 @@ import type { App } from 'obsidian';
 
 import { normalizePath } from 'obsidian';
 
-export interface ObsidianVaultBinaryConstructorParams {
-	readonly app: App;
-}
+import { t } from '../../i18n/index.ts';
 
 export interface VaultBinary {
 	exists(path: string): Promise<boolean>;
@@ -12,6 +10,10 @@ export interface VaultBinary {
 	readBinary(path: string): Promise<Uint8Array>;
 	trash(path: string): Promise<void>;
 	writeBinary(path: string, bytes: Uint8Array): Promise<void>;
+}
+
+interface ObsidianVaultBinaryConstructorParams {
+	readonly app: App;
 }
 
 export class ObsidianVaultBinary implements VaultBinary {
@@ -28,7 +30,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 	public async modifyBinary(path: string, bytes: Uint8Array): Promise<void> {
 		const file = this.app.vault.getFileByPath(normalizePath(path));
 		if (!file) {
-			throw new Error(`Vault file was not found: ${path}`);
+			throw new Error(t('errors.vaultFileNotFound', { path }));
 		}
 		await this.app.vault.modifyBinary(file, Uint8Array.from(bytes).buffer);
 	}
@@ -36,7 +38,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 	public async readBinary(path: string): Promise<Uint8Array> {
 		const file = this.app.vault.getFileByPath(normalizePath(path));
 		if (!file) {
-			throw new Error(`Vault file was not found: ${path}`);
+			throw new Error(t('errors.vaultFileNotFound', { path }));
 		}
 		return new Uint8Array(await this.app.vault.readBinary(file));
 	}
@@ -55,7 +57,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 	public async trash(path: string): Promise<void> {
 		const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
 		if (!file) {
-			throw new Error(`Vault file was not found: ${path}`);
+			throw new Error(t('errors.vaultFileNotFound', { path }));
 		}
 		await this.app.fileManager.trashFile(file);
 	}
@@ -63,7 +65,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 	public async writeBinary(path: string, bytes: Uint8Array): Promise<void> {
 		const normalizedPath = normalizePath(path);
 		if (this.app.vault.getAbstractFileByPath(normalizedPath)) {
-			throw new Error(`Vault path already exists: ${normalizedPath}`);
+			throw new Error(t('errors.vaultPathAlreadyExists', { path: normalizedPath }));
 		}
 		await this.createParentFolders(normalizedPath);
 		await this.app.vault.createBinary(

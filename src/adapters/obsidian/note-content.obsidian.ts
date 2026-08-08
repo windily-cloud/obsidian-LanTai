@@ -10,24 +10,24 @@ export interface NoteContent {
 	setContent(content: string): Promise<void>;
 }
 
-export interface ObsidianNoteContentConstructorParams {
+export interface TextEdit {
+	readonly end: number;
+	readonly expected: string;
+	readonly replacement: string;
+	readonly start: number;
+}
+
+interface ObsidianNoteContentConstructorParams {
 	readonly app: App;
 	readonly content: string;
 	readonly editor?: Editor;
 	readonly file: TFile;
 }
 
-export interface ObsidianNoteContentCreateParams {
+interface ObsidianNoteContentCreateParams {
 	readonly app: App;
 	readonly editor?: Editor;
 	readonly file: TFile;
-}
-
-export interface TextEdit {
-	readonly end: number;
-	readonly expected: string;
-	readonly replacement: string;
-	readonly start: number;
 }
 
 export class ObsidianNoteContent implements NoteContent {

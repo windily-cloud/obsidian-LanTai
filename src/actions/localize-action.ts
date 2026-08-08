@@ -11,7 +11,9 @@ import type {
 } from '../settings/plugin-settings.ts';
 import type { ActionResult } from './action-result.ts';
 
-export interface LocalizeActionInput {
+import { t } from '../i18n/index.ts';
+
+interface LocalizeActionInput {
 	attachmentBase: AttachmentBase;
 	ctx: NameTemplateContext;
 	http: HttpFetch;
@@ -32,7 +34,7 @@ export class LocalizeAction {
 
 	public async execute(input: LocalizeActionInput): Promise<ActionResult> {
 		if (input.note.getContent().slice(input.ref.start, input.ref.end) !== input.ref.source) {
-			return { message: 'The image link changed before localization started.', ok: false, reason: 'conflict' };
+			return { message: t('errors.linkChangedBeforeLocalize'), ok: false, reason: 'conflict' };
 		}
 		const localPath = this.pathResolver.resolveLocalPath({
 			base: input.attachmentBase,
@@ -66,7 +68,7 @@ export class LocalizeAction {
 		return applied
 			? { ok: true }
 			: {
-				message: 'Image saved, but the note link changed before it could be updated.',
+				message: t('errors.savedButLinkChanged'),
 				ok: false,
 				reason: 'conflict'
 			};

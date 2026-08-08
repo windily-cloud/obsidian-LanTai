@@ -1,9 +1,4 @@
-export type SystemCommandRunner = (command: string, args: readonly string[]) => Promise<void>;
-
-export interface SystemFileClipboardConstructorOptions {
-	readonly platform?: NodeJS.Platform;
-	readonly run?: SystemCommandRunner;
-}
+import { t } from '../../i18n/index.ts';
 
 interface ChildProcessModule {
 	execFile(
@@ -21,6 +16,14 @@ interface ProcessModule {
 	readonly platform: NodeJS.Platform;
 }
 
+type SystemCommandRunner = (command: string, args: readonly string[]) => Promise<void>;
+
+interface SystemFileClipboardConstructorOptions {
+	readonly platform?: NodeJS.Platform;
+	readonly run?: SystemCommandRunner;
+}
+
+/** Exposed for unit tests. */
 export class SystemFileClipboard {
 	private readonly platform: NodeJS.Platform | undefined;
 	private readonly run: SystemCommandRunner;
@@ -30,6 +33,7 @@ export class SystemFileClipboard {
 		this.run = options.run ?? runCommand;
 	}
 
+	/** Exposed for unit tests. */
 	public async copy(filePath: string): Promise<void> {
 		const platform = this.platform ?? getProcessModule().platform;
 		switch (platform) {
@@ -40,7 +44,7 @@ export class SystemFileClipboard {
 				await this.copyOnWindows(filePath);
 				return;
 			default:
-				throw new Error('Copy File is supported only on macOS and Windows.');
+				throw new Error(t('errors.copyFilePlatformOnly'));
 		}
 	}
 
@@ -81,7 +85,7 @@ function getDesktopRequire(): NonNullable<DesktopWindow['require']> {
 	const desktopWindow = window as DesktopWindow;
 	const requireModule = desktopWindow.require?.bind(desktopWindow);
 	if (!requireModule) {
-		throw new Error('Desktop system APIs are unavailable.');
+		throw new Error(t('errors.desktopSystemApisUnavailable'));
 	}
 	return requireModule;
 }

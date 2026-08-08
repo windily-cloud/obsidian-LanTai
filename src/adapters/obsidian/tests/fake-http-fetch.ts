@@ -1,10 +1,12 @@
 import type { HttpFetch } from '../http-fetch.obsidian.ts';
 
-export interface FakeHttpFetchConstructorOptions {
+interface FakeHttpFetchConstructorOptions {
 	readonly responses?: Record<string, Uint8Array>;
 }
 
+/** Test double for HttpFetch. */
 export class FakeHttpFetch implements HttpFetch {
+	/** Exposed for unit tests. */
 	public readonly calls: string[] = [];
 	private readonly responses: Map<string, Uint8Array>;
 
