@@ -47,6 +47,9 @@ describe('Plugin', () => {
 		app = App.createConfigured__();
 		const appOriginal = app.asOriginalType__();
 
+		Object.assign(app, {
+			saveAttachment: vi.fn().mockResolvedValue(undefined)
+		});
 		appOriginal.workspace.onLayoutReady = vi.fn((callback: () => void) => {
 			callback();
 		});

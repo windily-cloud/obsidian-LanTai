@@ -31,7 +31,7 @@ Obsidian **desktop** plugin for uploading, localizing, and downloading images wi
 | **Upload** | Push a local image to the active storage profile; replace the note link with the remote URL. |
 | **Localize** | Bring a remote image into the vault (or only rewrite the link if the target path already exists). |
 | **Download** | Save the image **outside** the vault via the system “Save as” dialog; does **not** change note links or write into the vault. |
-| **Plugin-scoped attachment path** | Directory and filename rules used only by this plugin’s localize/upload-related local writes—not Obsidian’s global default attachment location. |
+| **Plugin-scoped attachment path** | Directory and filename rules for image writes (localize/upload and new images from paste/drop, etc.). Non-image attachments still use Obsidian’s global default. Avoid running alongside `obsidian-custom-attachment-location` or similar path plugins. |
 | **Storage profile** | A named object-storage connection. Uploads always use the **active** profile. |
 | **Public base URL** | Prefix for links written into notes: `publicBaseUrl + objectKey` (no presigned URLs in notes for v1). |
 
@@ -54,10 +54,10 @@ Obsidian **desktop** plugin for uploading, localizing, and downloading images wi
 
 ## Limitations
 
-- Desktop only; no paste/drag auto-upload in v1.
+- Desktop only; no paste/drag **auto-upload** in v1 (new image files still use the plugin path template).
 - No note-wide batch “download / save as”.
 - Preview/reading mode does not take over the image menu.
-- Write conflicts fail with a notice (no overwrite, no auto suffix).
+- Localize/upload write conflicts fail with a notice (no overwrite, no auto suffix); **new** images dedupe like Obsidian (`name 1`).
 - Image compression, OCR, and toolkit-style tools are not shipped yet (related settings stubs are hidden).
 
 ## Contributing & releasing

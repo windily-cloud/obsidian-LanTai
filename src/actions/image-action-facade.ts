@@ -18,6 +18,7 @@ import type { LocalizeAction } from './localize-action.ts';
 import type { UploadAction } from './upload-action.ts';
 
 import { t } from '../i18n/index.ts';
+import { buildNameTemplateContext } from '../path/name-template-context.ts';
 import { validateStorageSecrets } from '../storage/storage-credential-guard.ts';
 
 export interface ImageActionContext {
@@ -134,14 +135,15 @@ export class ImageActionFacade {
 		if (!ref.isRemote) {
 			return { message: t('errors.alreadyLocal'), ok: false, reason: 'missing' };
 		}
+		const ctx = createTemplateContext(ref.target, context.noteFilePath);
 		return this.localizeAction.execute({
 			attachmentBase: this.settings.attachmentBase,
-			ctx: createTemplateContext(ref.target, context.noteFilePath),
+			ctx,
 			http: this.http,
 			linkStyle: this.settings.linkStyle,
 			localPathTemplate: this.settings.localPathTemplate,
 			note: context.note,
-			noteFolderPath: noteFolderPath(context.noteFilePath),
+			noteFolderPath: ctx.noteFolderPath,
 			ref,
 			remoteUrl: ref.target,
 			vault: this.vault
@@ -217,14 +219,15 @@ export class ImageActionFacade {
 			accessKeyId,
 			secretAccessKey
 		});
+		const ctx = createTemplateContext(ref.target, context.noteFilePath);
 		return this.uploadAction.execute({
-			ctx: createTemplateContext(ref.target, context.noteFilePath),
+			ctx,
 			deleteSourceAfterUpload: this.settings.deleteSourceAfterUpload,
 			hasRemainingReference: (): Promise<boolean> => this.hasRemainingLocalReference(localPath, context),
 			linkStyle: this.settings.linkStyle,
 			localPath,
 			note: context.note,
-			noteFolderPath: noteFolderPath(context.noteFilePath),
+			noteFolderPath: ctx.noteFolderPath,
 			objectKeyTemplate: profile.objectKeyTemplate,
 			ref,
 			storage,
@@ -258,47 +261,27 @@ function actionErrorResult(error: unknown): ActionResult {
 	};
 }
 
-function basename(path: string): string {
-	const index = path.lastIndexOf('/');
-	return index === -1 ? path : path.slice(index + 1);
-}
-
 function createTemplateContext(
 	imageTarget: string,
 	noteFilePathWithExtension: string
 ): NameTemplateContext {
-	const notePath = stripExtension(noteFilePathWithExtension);
-	const folderPath = noteFolderPath(noteFilePathWithExtension);
 	const fileName = imageFileName(imageTarget);
 	const extensionIndex = fileName.lastIndexOf('.');
-	return {
+	return buildNameTemplateContext({
 		ext: extensionIndex > 0 ? fileName.slice(extensionIndex + 1) : '',
-		noteFileName: basename(notePath),
-		noteFilePath: notePath,
-		noteFolderName: basename(folderPath),
-		noteFolderPath: folderPath,
-		now: new Date(),
+		noteFilePath: noteFilePathWithExtension,
 		originalName: extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
-	};
+	});
 }
 
 function imageFileName(target: string): string {
 	const withoutQuery = target.split(/[?#]/u, 1)[0] ?? target;
-	const encodedName = basename(withoutQuery) || 'image';
+	const slashIndex = withoutQuery.lastIndexOf('/');
+	const encodedName = (slashIndex === -1 ? withoutQuery : withoutQuery.slice(slashIndex + 1))
+		|| 'image';
 	try {
 		return decodeURIComponent(encodedName);
 	} catch {
 		return encodedName;
 	}
-}
-
-function noteFolderPath(path: string): string {
-	const index = path.lastIndexOf('/');
-	return index === -1 ? '' : path.slice(0, index);
-}
-
-function stripExtension(path: string): string {
-	const slashIndex = path.lastIndexOf('/');
-	const extensionIndex = path.lastIndexOf('.');
-	return extensionIndex > slashIndex ? path.slice(0, extensionIndex) : path;
 }

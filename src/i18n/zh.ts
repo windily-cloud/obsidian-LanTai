@@ -20,8 +20,7 @@ export const zh = {
 	},
 	errors: {
 		accessKeysMustDiffer: 'Access Key ID 与 Secret Access Key 必须绑定不同的密钥。',
-		accessKeysSameValue:
-			'Access Key ID 与 Secret Access Key 解析为相同值。请绑定不同的密钥。',
+		accessKeysSameValue: 'Access Key ID 与 Secret Access Key 解析为相同值。请绑定不同的密钥。',
 		alreadyLocal: '图片已是本地图片',
 		alreadyRemote: '图片已是远程图片',
 		bookmarksUnavailable: '无法使用 Obsidian 书签插件。',
@@ -54,8 +53,7 @@ export const zh = {
 		savedButLinkChanged: '图片已保存，但更新链接前笔记中的链接已变更。',
 		showInFolderUnavailable: '当前 Obsidian 版本不支持在访达/资源管理器中显示。',
 		sourceNoteMultiplePanes: '源笔记在多个窗格中打开；请先关闭重复窗格再编辑此图片。',
-		storageAuthFailed:
-			'对象存储鉴权失败。请检查 Access Key ID、Secret Access Key、桶与区域。',
+		storageAuthFailed: '对象存储鉴权失败。请检查 Access Key ID、Secret Access Key、桶与区域。',
 		storageError: '存储错误（{code}）。',
 		storageErrorWithMessage: '{code}: {message}',
 		storageSecretsMissing: '存储配置档缺少密钥',
@@ -137,7 +135,7 @@ export const zh = {
 	settings: {
 		active: '当前启用',
 		attachmentBase: '附件目录',
-		attachmentBaseDesc: '仅影响本插件管辖的路径。',
+		attachmentBaseDesc: '适用于本地化/上传，以及粘贴、拖拽等 Obsidian 图片新建落盘。非图片附件仍使用 Obsidian 默认位置。',
 		collapse: '折叠',
 		currentNoteFolder: '当前笔记目录',
 		delete: '删除',
@@ -155,6 +153,7 @@ export const zh = {
 		fieldRegion: 'Region',
 		fieldSecretAccessKey: 'Secret Access Key',
 		general: '通用',
+		imageCreateFallback: '无法按插件路径模板保存图片，已回退到 Obsidian 默认位置。',
 		invalidTemplate: '无效模板',
 		invalidTemplateWithMessage: '无效模板：{message}',
 		linkStyle: '本地图片链接风格',

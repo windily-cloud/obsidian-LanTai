@@ -1,12 +1,18 @@
 # CHANGELOG
 
+## 0.0.2
+
+- feat: 接管图片新建落盘并修正删除确认顺序
+- feat: 补全插件 en/zh 双语 i18n
+- dev: 添加布局样式
+
 ## 0.0.1
 
 - fix: 发版不要求100%测试覆盖率
 - fix: 发版不跑集成测试
 - fix: find-overexposed
 - fix: find-overexposed
-- fix: lint errror
+- fix: lint error
 - fix: markdown lint still running
 - build: remove markdown lint
 - fix: wrong version

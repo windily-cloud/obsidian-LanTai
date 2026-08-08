@@ -8,6 +8,7 @@ import { UploadAction } from './actions/upload-action.ts';
 import { SystemImageClipboard } from './adapters/desktop/system-image-clipboard.ts';
 import { ObsidianDesktopFileActions } from './adapters/obsidian/desktop-file-actions.obsidian.ts';
 import { ObsidianHttpFetch } from './adapters/obsidian/http-fetch.obsidian.ts';
+import { SaveAttachmentPatchComponent } from './adapters/obsidian/save-attachment.obsidian.ts';
 import { ObsidianSaveDialog } from './adapters/obsidian/save-dialog.obsidian.ts';
 import { ObsidianSecretStore } from './adapters/obsidian/secret-store.obsidian.ts';
 import { ObsidianVaultBinary } from './adapters/obsidian/vault-binary.obsidian.ts';
@@ -67,6 +68,14 @@ export class Plugin extends PluginBase {
 			uploadAction: new UploadAction(pathResolver, linkService),
 			vault
 		});
+
+		this.addChild(
+			new SaveAttachmentPatchComponent({
+				app: this.app,
+				pathResolver,
+				settings: this.pluginSettings
+			})
+		);
 
 		this.addSettingTab(
 			new PluginSettingsTab({

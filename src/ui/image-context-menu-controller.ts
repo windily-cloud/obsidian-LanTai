@@ -306,7 +306,7 @@ export class ImageContextMenuController {
 				return;
 			default: {
 				const _exhaustive: never = itemKey;
-				void _exhaustive;
+				throw new Error(`Unhandled menu item: ${String(_exhaustive)}`);
 			}
 		}
 	}
@@ -355,8 +355,7 @@ export class ImageContextMenuController {
 					break;
 				default: {
 					const _exhaustive: never = action;
-					void _exhaustive;
-					return;
+					throw new Error(`Unhandled context action: ${String(_exhaustive)}`);
 				}
 			}
 			if (!result.ok) {
@@ -390,18 +389,16 @@ export class ImageContextMenuController {
 					await this.fileActions.copyVaultPath(target, context.noteFilePath);
 					return;
 				case 'delete-file': {
-					if (resolved.ref) {
-						const removed = await this.applyLinkEdit(
-							resolved.ref,
-							this.linkService.formatRemoveEmbed(),
-							context,
-							t('notices.conflictRemove')
-						);
-						if (!removed) {
-							return;
-						}
+					const deleted = await this.fileActions.deleteFile(target, context.noteFilePath);
+					if (!deleted || !resolved.ref) {
+						return;
 					}
-					await this.fileActions.deleteFile(target, context.noteFilePath);
+					await this.applyLinkEdit(
+						resolved.ref,
+						this.linkService.formatRemoveEmbed(),
+						context,
+						t('notices.conflictRemove')
+					);
 					return;
 				}
 				case 'move':
@@ -440,7 +437,7 @@ export class ImageContextMenuController {
 					return;
 				default: {
 					const _exhaustive: never = action;
-					void _exhaustive;
+					throw new Error(`Unhandled native action: ${String(_exhaustive)}`);
 				}
 			}
 		} catch (error) {

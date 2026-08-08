@@ -11,10 +11,8 @@ export const en = {
 		uploadCurrent: 'Upload current image'
 	},
 	errors: {
-		accessKeysMustDiffer:
-			'Access Key ID and Secret Access Key must use different secrets.',
-		accessKeysSameValue:
-			'Access Key ID and Secret Access Key resolve to the same value. Bind different secrets.',
+		accessKeysMustDiffer: 'Access Key ID and Secret Access Key must use different secrets.',
+		accessKeysSameValue: 'Access Key ID and Secret Access Key resolve to the same value. Bind different secrets.',
 		alreadyLocal: 'Image is already local',
 		alreadyRemote: 'Image is already remote',
 		bookmarksUnavailable: 'The Obsidian Bookmarks plugin is unavailable.',
@@ -27,14 +25,11 @@ export const en = {
 		electronFileUnavailable: 'Electron file APIs are unavailable.',
 		electronSaveDialogUnavailable: 'Electron save dialog is unavailable',
 		fileExplorerUnavailable: 'The Obsidian File Explorer is unavailable.',
-		galleryProfileChanged:
-			'Storage profile or search changed. Open the delete menu again.',
+		galleryProfileChanged: 'Storage profile or search changed. Open the delete menu again.',
 		imageActionFailed: 'Image action failed.',
 		imagesFilter: 'Images',
-		linkChangedBeforeLayout:
-			'The image link changed before its layout could be updated.',
-		linkChangedBeforeLocalize:
-			'The image link changed before localization started.',
+		linkChangedBeforeLayout: 'The image link changed before its layout could be updated.',
+		linkChangedBeforeLocalize: 'The image link changed before localization started.',
 		linkChangedBeforeUpdate: 'The image link changed before it could be updated.',
 		linkChangedBeforeUpload: 'The image link changed before upload started.',
 		localImageNotFound: 'Local image was not found',
@@ -42,29 +37,21 @@ export const en = {
 		markdownViewNotFound: 'Could not find the Markdown view for this image.',
 		noActiveStorageProfile: 'No active storage profile',
 		noImageSource: 'No image source',
-		openWithDefaultUnavailable:
-			'Open with Default Application is unavailable in this Obsidian version.',
+		openWithDefaultUnavailable: 'Open with Default Application is unavailable in this Obsidian version.',
 		publicBaseUrlRequired: 'Public Base URL is required',
-		remoteNotDecodableAsImage:
-			'The remote content could not be decoded as an image.',
+		remoteNotDecodableAsImage: 'The remote content could not be decoded as an image.',
 		renameUnavailable: 'Rename is unavailable in this Obsidian version.',
 		requiresLocalVaultFile: 'This action requires a local vault file.',
-		savedButLinkChanged:
-			'Image saved, but the note link changed before it could be updated.',
-		showInFolderUnavailable:
-			'Show in Finder/File Explorer is unavailable in this Obsidian version.',
-		sourceNoteMultiplePanes:
-			'The source note is open in multiple panes; close duplicate panes before editing this image.',
-		storageAuthFailed:
-			'Storage authorization failed. Check Access Key ID, Secret Access Key, bucket, and region.',
+		savedButLinkChanged: 'Image saved, but the note link changed before it could be updated.',
+		showInFolderUnavailable: 'Show in Finder/File Explorer is unavailable in this Obsidian version.',
+		sourceNoteMultiplePanes: 'The source note is open in multiple panes; close duplicate panes before editing this image.',
+		storageAuthFailed: 'Storage authorization failed. Check Access Key ID, Secret Access Key, bucket, and region.',
 		storageError: 'Storage error ({code}).',
 		storageErrorWithMessage: '{code}: {message}',
 		storageSecretsMissing: 'Storage profile secrets are missing',
-		uploadedButLinkChanged:
-			'Image uploaded, but the note link changed before it could be updated.',
+		uploadedButLinkChanged: 'Image uploaded, but the note link changed before it could be updated.',
 		vaultFileNotFound: 'Vault file was not found: {path}',
-		vaultNoLocalPath:
-			'The current vault does not expose a local file-system path.',
+		vaultNoLocalPath: 'The current vault does not expose a local file-system path.',
 		vaultPathAlreadyExists: 'Vault path already exists: {path}'
 	},
 	gallery: {
@@ -79,8 +66,7 @@ export const en = {
 		noImages: 'No images found',
 		noMatching: 'No matching images',
 		noProfiles: 'No storage profiles',
-		permanentlyDeletes:
-			'This permanently deletes {key} from object storage.',
+		permanentlyDeletes: 'This permanently deletes {key} from object storage.',
 		profileAria: 'Gallery storage profile',
 		referencedBy: 'Referenced by {count} note(s):',
 		searchPlaceholder: 'Search object keys...',
@@ -119,13 +105,10 @@ export const en = {
 	},
 	notices: {
 		actionCompleted: 'Image action completed.',
-		batchFinished:
-			'{action} finished: {succeeded} succeeded, {failed} failed.',
-		conflictLayout:
-			'The image link changed before its layout could be updated.',
+		batchFinished: '{action} finished: {succeeded} succeeded, {failed} failed.',
+		conflictLayout: 'The image link changed before its layout could be updated.',
 		conflictRemove: 'The image link changed before it could be removed.',
-		conflictResetSize:
-			'The image link changed before its size could be reset.',
+		conflictResetSize: 'The image link changed before its size could be reset.',
 		couldNotFindSourceNote: 'Could not find the source note for this image.',
 		couldNotIdentifyImage: 'Could not identify this image.',
 		couldNotLocateLink: 'Could not locate the image link in the note.',
@@ -144,13 +127,12 @@ export const en = {
 	settings: {
 		active: 'Active',
 		attachmentBase: 'Attachment base',
-		attachmentBaseDesc: 'Only affects paths managed by this plugin.',
+		attachmentBaseDesc: 'Applies to localize/upload paths and to new images created via paste, drop, and similar Obsidian flows. Non-image attachments still use Obsidian’s default location.',
 		collapse: 'Collapse',
 		currentNoteFolder: 'Current note folder',
 		delete: 'Delete',
 		deleteSourceAfterUpload: 'Delete source after upload',
-		deleteSourceAfterUploadDesc:
-			'Move the local source image to the Obsidian trash after a successful upload.',
+		deleteSourceAfterUploadDesc: 'Move the local source image to the Obsidian trash after a successful upload.',
 		emptyProfiles: 'Create a storage profile to enable uploads.',
 		expand: 'Expand',
 		fieldAccessKeyId: 'Access Key ID',
@@ -163,6 +145,7 @@ export const en = {
 		fieldRegion: 'Region',
 		fieldSecretAccessKey: 'Secret Access Key',
 		general: 'General',
+		imageCreateFallback: 'LanTai could not save the image with the plugin path template; falling back to Obsidian’s default location.',
 		invalidTemplate: 'Invalid template',
 		invalidTemplateWithMessage: 'Invalid template: {message}',
 		linkStyle: 'Local image link style',

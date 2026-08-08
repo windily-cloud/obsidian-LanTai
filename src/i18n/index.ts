@@ -3,15 +3,15 @@ import { getLanguage } from 'obsidian';
 import { en } from './en.ts';
 import { zh } from './zh.ts';
 
-export type I18nKey =
+type Dictionary = typeof en;
+
+type I18nKey =
 	| `commands.${keyof typeof en.commands}`
 	| `errors.${keyof typeof en.errors}`
 	| `gallery.${keyof typeof en.gallery}`
 	| `menu.${keyof typeof en.menu}`
 	| `notices.${keyof typeof en.notices}`
 	| `settings.${keyof typeof en.settings}`;
-
-type Dictionary = typeof en;
 
 type InterpolationVars = Record<string, boolean | number | string | undefined>;
 

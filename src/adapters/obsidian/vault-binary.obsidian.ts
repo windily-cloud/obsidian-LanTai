@@ -3,6 +3,7 @@ import type { App } from 'obsidian';
 import { normalizePath } from 'obsidian';
 
 import { t } from '../../i18n/index.ts';
+import { ensureParentFolders } from './ensure-parent-folders.ts';
 
 export interface VaultBinary {
 	exists(path: string): Promise<boolean>;
@@ -67,23 +68,11 @@ export class ObsidianVaultBinary implements VaultBinary {
 		if (this.app.vault.getAbstractFileByPath(normalizedPath)) {
 			throw new Error(t('errors.vaultPathAlreadyExists', { path: normalizedPath }));
 		}
-		await this.createParentFolders(normalizedPath);
+		await ensureParentFolders(this.app, normalizedPath);
 		await this.app.vault.createBinary(
 			normalizedPath,
 			Uint8Array.from(bytes).buffer
 		);
-	}
-
-	private async createParentFolders(path: string): Promise<void> {
-		const segments = path.split('/');
-		segments.pop();
-		let current = '';
-		for (const segment of segments) {
-			current = current ? `${current}/${segment}` : segment;
-			if (!this.app.vault.getAbstractFileByPath(current)) {
-				await this.app.vault.createFolder(current);
-			}
-		}
 	}
 }
 
