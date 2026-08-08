@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.4
+
+- fix: 生产构建产物输出到 dist/ 而非 dist/build
+- fix: 用浏览器下载与 Obsidian API 去掉 fs/child_process
+
 ## 0.0.3
 
 - fix: unexport settings definition params used only locally
