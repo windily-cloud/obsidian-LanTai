@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.0.3
+
+- fix: unexport settings definition params used only locally
+- chore: normalize JSON indentation to tabs for dprint
+- fix: restore S3 profile settings to a compact one-per-row layout
+- fix: address Obsidian review blockers for release install and settings
+
 ## 0.0.2
 
 - chore: 用 dprint 统一 JSON 缩进为 tab
