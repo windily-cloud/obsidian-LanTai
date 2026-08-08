@@ -1,6 +1,6 @@
+import type { BrowserDownload } from '../adapters/obsidian/browser-download.obsidian.ts';
 import type { HttpFetch } from '../adapters/obsidian/http-fetch.obsidian.ts';
 import type { NoteContent } from '../adapters/obsidian/note-content.obsidian.ts';
-import type { SaveDialog } from '../adapters/obsidian/save-dialog.obsidian.ts';
 import type { VaultBinary } from '../adapters/obsidian/vault-binary.obsidian.ts';
 import type { ImageLinkParser } from '../link/image-link-parser.ts';
 import type {
@@ -45,6 +45,7 @@ type HasLocalReference = (
 
 interface ImageActionFacadeConstructorParams {
 	readonly createStorage: CreateObjectStorage;
+	readonly download: BrowserDownload;
 	readonly downloadAction: DownloadAction;
 	readonly getSecret: GetSecret;
 	readonly hasLocalReference: HasLocalReference;
@@ -52,19 +53,16 @@ interface ImageActionFacadeConstructorParams {
 	readonly localizeAction: LocalizeAction;
 	readonly parser: ImageLinkParser;
 	readonly resolveVaultPath: ResolveVaultPath;
-	readonly saveDialog: SaveDialog;
 	readonly settings: PluginSettings;
 	readonly uploadAction: UploadAction;
 	readonly vault: VaultBinary;
 }
 
-type ResolveVaultPath = (
-	target: string,
-	noteFilePath: string
-) => null | string;
+type ResolveVaultPath = (target: string, noteFilePath: string) => null | string;
 
 export class ImageActionFacade {
 	private readonly createStorage: ImageActionFacadeConstructorParams['createStorage'];
+	private readonly download: BrowserDownload;
 	private readonly downloadAction: DownloadAction;
 	private readonly getSecret: ImageActionFacadeConstructorParams['getSecret'];
 	private readonly hasLocalReference: HasLocalReference;
@@ -72,13 +70,13 @@ export class ImageActionFacade {
 	private readonly localizeAction: LocalizeAction;
 	private readonly parser: ImageLinkParser;
 	private readonly resolveVaultPath: ImageActionFacadeConstructorParams['resolveVaultPath'];
-	private readonly saveDialog: SaveDialog;
 	private readonly settings: PluginSettings;
 	private readonly uploadAction: UploadAction;
 	private readonly vault: VaultBinary;
 
 	public constructor(params: ImageActionFacadeConstructorParams) {
 		this.createStorage = params.createStorage;
+		this.download = params.download;
 		this.downloadAction = params.downloadAction;
 		this.getSecret = params.getSecret;
 		this.http = params.http;
@@ -86,7 +84,6 @@ export class ImageActionFacade {
 		this.localizeAction = params.localizeAction;
 		this.parser = params.parser;
 		this.resolveVaultPath = params.resolveVaultPath;
-		this.saveDialog = params.saveDialog;
 		this.settings = params.settings;
 		this.uploadAction = params.uploadAction;
 		this.vault = params.vault;
@@ -99,16 +96,21 @@ export class ImageActionFacade {
 		const fileName = imageFileName(target.target);
 		const localPath = target.isRemote
 			? undefined
-			: (this.resolveVaultPath(target.target, context.noteFilePath) ?? undefined);
+			: (this.resolveVaultPath(target.target, context.noteFilePath)
+				?? undefined);
 		if (!target.isRemote && !localPath) {
-			return { message: t('errors.localImageNotFound'), ok: false, reason: 'missing' };
+			return {
+				message: t('errors.localImageNotFound'),
+				ok: false,
+				reason: 'missing'
+			};
 		}
 		return this.downloadAction.execute({
 			defaultFileName: fileName,
+			download: this.download,
 			http: this.http,
 			...(localPath ? { localPath } : {}),
 			...(target.isRemote ? { remoteUrl: target.target } : {}),
-			saveDialog: this.saveDialog,
 			vault: this.vault
 		});
 	}
@@ -116,7 +118,9 @@ export class ImageActionFacade {
 	public async localizeAllRemoteInNote(
 		context: ImageActionContext
 	): Promise<ActionResult[]> {
-		const { remote } = classifyRefs(this.parser.parse(context.note.getContent()));
+		const { remote } = classifyRefs(
+			this.parser.parse(context.note.getContent())
+		);
 		const results: ActionResult[] = [];
 		for (const ref of [...remote].reverse()) {
 			try {
@@ -133,7 +137,11 @@ export class ImageActionFacade {
 		context: ImageActionContext
 	): Promise<ActionResult> {
 		if (!ref.isRemote) {
-			return { message: t('errors.alreadyLocal'), ok: false, reason: 'missing' };
+			return {
+				message: t('errors.alreadyLocal'),
+				ok: false,
+				reason: 'missing'
+			};
 		}
 		const ctx = createTemplateContext(ref.target, context.noteFilePath);
 		return this.localizeAction.execute({
@@ -157,7 +165,9 @@ export class ImageActionFacade {
 	public async uploadAllLocalInNote(
 		context: ImageActionContext
 	): Promise<ActionResult[]> {
-		const { local } = classifyRefs(this.parser.parse(context.note.getContent()));
+		const { local } = classifyRefs(
+			this.parser.parse(context.note.getContent())
+		);
 		const results: ActionResult[] = [];
 		for (const ref of [...local].reverse()) {
 			try {
@@ -174,7 +184,11 @@ export class ImageActionFacade {
 		context: ImageActionContext
 	): Promise<ActionResult> {
 		if (ref.isRemote) {
-			return { message: t('errors.alreadyRemote'), ok: false, reason: 'missing' };
+			return {
+				message: t('errors.alreadyRemote'),
+				ok: false,
+				reason: 'missing'
+			};
 		}
 		const profile = this.settings.profiles.find(
 			(item) => item.id === this.settings.activeProfileId
@@ -213,7 +227,11 @@ export class ImageActionFacade {
 		}
 		const localPath = this.resolveVaultPath(ref.target, context.noteFilePath);
 		if (!localPath) {
-			return { message: t('errors.localImageNotFound'), ok: false, reason: 'missing' };
+			return {
+				message: t('errors.localImageNotFound'),
+				ok: false,
+				reason: 'missing'
+			};
 		}
 		const storage = await this.createStorage(profile, {
 			accessKeyId,

@@ -6,10 +6,10 @@ import { ImageFileActions } from './actions/image-file-actions.ts';
 import { LocalizeAction } from './actions/localize-action.ts';
 import { UploadAction } from './actions/upload-action.ts';
 import { SystemImageClipboard } from './adapters/desktop/system-image-clipboard.ts';
+import { ObsidianBrowserDownload } from './adapters/obsidian/browser-download.obsidian.ts';
 import { ObsidianDesktopFileActions } from './adapters/obsidian/desktop-file-actions.obsidian.ts';
 import { ObsidianHttpFetch } from './adapters/obsidian/http-fetch.obsidian.ts';
 import { SaveAttachmentPatchComponent } from './adapters/obsidian/save-attachment.obsidian.ts';
-import { ObsidianSaveDialog } from './adapters/obsidian/save-dialog.obsidian.ts';
 import { ObsidianSecretStore } from './adapters/obsidian/secret-store.obsidian.ts';
 import { ObsidianVaultBinary } from './adapters/obsidian/vault-binary.obsidian.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
@@ -43,6 +43,7 @@ export class Plugin extends PluginBase {
 		const secretStore = new ObsidianSecretStore({ app: this.app });
 		const facade = new ImageActionFacade({
 			createStorage: createObjectStorage,
+			download: new ObsidianBrowserDownload(),
 			downloadAction: new DownloadAction(),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
 			hasLocalReference: async (localPath, context): Promise<boolean> => {
@@ -64,7 +65,6 @@ export class Plugin extends PluginBase {
 			localizeAction: new LocalizeAction(pathResolver, linkService),
 			parser,
 			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
-			saveDialog: new ObsidianSaveDialog(),
 			settings: this.settings,
 			uploadAction: new UploadAction(pathResolver, linkService),
 			vault

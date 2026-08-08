@@ -1,5 +1,5 @@
+import type { BrowserDownload } from '../adapters/obsidian/browser-download.obsidian.ts';
 import type { HttpFetch } from '../adapters/obsidian/http-fetch.obsidian.ts';
-import type { SaveDialog } from '../adapters/obsidian/save-dialog.obsidian.ts';
 import type { VaultBinary } from '../adapters/obsidian/vault-binary.obsidian.ts';
 import type { ActionResult } from './action-result.ts';
 
@@ -7,10 +7,10 @@ import { t } from '../i18n/index.ts';
 
 interface DownloadActionInput {
 	defaultFileName: string;
+	download: BrowserDownload;
 	http: HttpFetch;
 	localPath?: string;
 	remoteUrl?: string;
-	saveDialog: SaveDialog;
 	vault: VaultBinary;
 }
 
@@ -22,15 +22,14 @@ export class DownloadAction {
 		} else if (input.localPath) {
 			bytes = await input.vault.readBinary(input.localPath);
 		} else {
-			return { message: t('errors.noImageSource'), ok: false, reason: 'missing' };
+			return {
+				message: t('errors.noImageSource'),
+				ok: false,
+				reason: 'missing'
+			};
 		}
 
-		const picked = await input.saveDialog.pickSavePath(input.defaultFileName);
-		if (picked === null) {
-			return { cancelled: true, ok: true };
-		}
-
-		await input.saveDialog.writeOsFile(picked, bytes);
+		await input.download.save(input.defaultFileName, bytes);
 
 		return { ok: true };
 	}

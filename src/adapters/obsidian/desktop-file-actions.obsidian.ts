@@ -37,10 +37,6 @@ interface ElectronDialogFilter {
 	readonly name: string;
 }
 
-interface ElectronFs {
-	readFile(path: string): Promise<Buffer>;
-}
-
 interface ElectronModule {
 	readonly dialog?: ElectronDialog;
 	readonly remote?: ElectronRemote;
@@ -152,8 +148,7 @@ export class ObsidianDesktopFileActions {
 		if (result.canceled || result.filePaths.length === 0 || !result.filePaths[0]) {
 			return null;
 		}
-		const fs = getElectronFs();
-		const buffer = await fs.readFile(result.filePaths[0]);
+		const buffer = await FileSystemAdapter.readLocalFile(result.filePaths[0]);
 		return new Uint8Array(buffer);
 	}
 
@@ -249,13 +244,4 @@ function getElectronDialog(): ElectronDialog {
 		throw new Error(t('errors.electronDialogUnavailable'));
 	}
 	return dialog;
-}
-
-function getElectronFs(): ElectronFs {
-	const desktopWindow = window as DesktopWindow;
-	const requireModule = desktopWindow.require?.bind(desktopWindow);
-	if (!requireModule) {
-		throw new Error(t('errors.electronFileUnavailable'));
-	}
-	return requireModule('fs/promises') as ElectronFs;
 }
