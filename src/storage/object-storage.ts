@@ -7,6 +7,7 @@ export interface ObjectStorage {
 export interface ObjectStorageBrowser {
 	buildPublicUrl(objectKey: string): Promise<string>;
 	delete(objectKey: string): Promise<void>;
+	exists(objectKey: string): Promise<boolean>;
 	list(options?: ObjectStorageListOptions): Promise<ObjectStorageListResult>;
 	search(query: string): AsyncGenerator<ObjectStorageFile, void>;
 }

@@ -62,6 +62,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: ref('![[photo.png]]'),
 			storage,
 			vault
@@ -89,6 +91,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: ref('![[photo.png]]'),
 			storage,
 			vault
@@ -96,6 +100,61 @@ describe('UploadAction', () => {
 		expect(result).toEqual({ ok: false, reason: 'conflict' });
 		expect(note.getContent()).toBe('![[photo.png]]');
 		expect(storage.uploadedKeys).toHaveLength(0);
+	});
+
+	it('continues upload when exists throws a permission UnknownError', async () => {
+		const note = new FakeNoteContent('![[photo.png]]');
+		const storage = new FakeObjectStorage({
+			existsError: Object.assign(new Error('UnknownError'), { code: 'Unknown' }),
+			publicBaseUrl: 'https://cdn.example.com'
+		});
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([1, 2, 3]) });
+		const recordUpload = vi.fn().mockResolvedValue(undefined);
+		const result = await createAction().execute({
+			ctx: ctx(),
+			deleteSourceAfterUpload: false,
+			hasRemainingReference: vi.fn().mockResolvedValue(false),
+			linkStyle: 'wiki',
+			localPath: 'Journal/photo.png',
+			note,
+			noteFolderPath: 'Journal',
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload,
+			ref: ref('![[photo.png]]'),
+			storage,
+			vault
+		});
+		expect(result.ok).toBe(true);
+		expect(storage.uploadedKeys).toContain('images/photo.png');
+		expect(recordUpload).toHaveBeenCalledOnce();
+	});
+
+	it('does not record history when applyEdit fails after upload', async () => {
+		const note = new FakeNoteContent('![[photo.png]]');
+		vi.spyOn(note, 'applyEdit').mockResolvedValue(false);
+		const storage = new FakeObjectStorage({ publicBaseUrl: 'https://cdn.example.com' });
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([1, 2, 3]) });
+		const recordUpload = vi.fn().mockResolvedValue(undefined);
+		const result = await createAction().execute({
+			ctx: ctx(),
+			deleteSourceAfterUpload: false,
+			hasRemainingReference: vi.fn().mockResolvedValue(false),
+			linkStyle: 'wiki',
+			localPath: 'Journal/photo.png',
+			note,
+			noteFolderPath: 'Journal',
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload,
+			ref: ref('![[photo.png]]'),
+			storage,
+			vault
+		});
+		expect(result.ok).toBe(false);
+		expect(recordUpload).not.toHaveBeenCalled();
 	});
 
 	it('trashes local source when deleteSourceAfterUpload is true', async () => {
@@ -113,6 +172,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: ref('![[photo.png]]'),
 			storage,
 			vault
@@ -138,6 +199,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: ref('![[Pasted image.png]]'),
 			storage,
 			vault
@@ -169,6 +232,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: selected,
 			storage,
 			vault
@@ -199,6 +264,8 @@ describe('UploadAction', () => {
 			noteFolderPath: 'Journal',
 			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 			objectKeyTemplate: 'images/${originalName}.${ext}',
+			profileId: 'profile-1',
+			recordUpload: vi.fn().mockResolvedValue(undefined),
 			ref: selected,
 			storage,
 			vault

@@ -43,14 +43,14 @@ Obsidian **desktop** plugin for uploading, localizing, and downloading images wi
 - **Templates:** local path template and per-profile object key template with shared name tokens (`noteFileName`, `noteFolderName`, `noteFilePath`, `noteFolderPath`, `date`, `uuid`, `random`, `originalName`, `ext`).
 - **Link style:** Wiki or Markdown for local paths (default Wiki); **remote http(s) URLs always use Markdown** `![](https://...)`. Commands convert image links in the current note between Wiki and Markdown.
 - **Delete source after upload** (optional): after a successful upload and link replace, move the local source into Obsidian’s trash.
-- **S3 gallery:** ribbon entry to browse, search, and manage objects for a profile.
+- **Gallery:** ribbon entry to open the gallery, browse, search, and manage objects for a profile.
 
 ## How to trigger
 
 - **Image context menu** — Markdown **edit** views (Live Preview / Source with a rendered image). Reading/preview mode keeps Obsidian’s native image menu.
 - **Command palette** — upload / localize / download current image; batch upload / localize; convert links to Wiki or Markdown.
 - **Settings → LanTai** — General (attachment base, local path template, link style) and S3 (profiles, active profile, delete-after-upload).
-- **Ribbon** — browse S3 images.
+- **Ribbon** — Gallery.
 
 ## Limitations
 

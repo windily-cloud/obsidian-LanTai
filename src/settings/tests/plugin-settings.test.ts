@@ -28,6 +28,7 @@ interface SettingControlShape {
 
 interface SettingItemShape {
 	control?: SettingControlShape;
+	name?: string;
 	render?: unknown;
 }
 
@@ -44,11 +45,14 @@ describe('PluginSettings', () => {
 		expect(json.linkStyle).toBe('wiki');
 		expect(json.deleteSourceAfterUpload).toBe(false);
 		expect(json.galleryProfileId).toBeNull();
+		expect(json.gallerySource).toBe('recent');
+		expect(json).not.toHaveProperty('galleryUploadKeyTemplate');
+		expect(json).not.toHaveProperty('uploadHistory');
 	});
 });
 
 describe('buildLanTaiSettingDefinitions', () => {
-	it('returns searchable general controls and an S3 group', () => {
+	it('returns searchable general controls and an S3 group without gallery upload key template', () => {
 		const settings = new PluginSettings();
 		const pathResolver = new AttachmentPathResolver(new NameTemplateEngine());
 		const registry = new StorageProfileRegistry(settings);
@@ -76,6 +80,8 @@ describe('buildLanTaiSettingDefinitions', () => {
 		expect(generalItems.some((item) => hasControlKey(item, 'attachmentBase', 'dropdown'))).toBe(true);
 		expect(generalItems.some((item) => hasControlKey(item, 'linkStyle', 'dropdown'))).toBe(true);
 		expect(generalItems.some((item) => hasRender(item))).toBe(true);
+		expect(generalItems.some((item) => hasName(item, 'Gallery upload key template'))).toBe(false);
+		expect(generalItems.some((item) => hasName(item, '画廊上传键模板'))).toBe(false);
 
 		const s3Items = s3.items ?? [];
 		expect(s3Items.some((item) => hasRender(item))).toBe(true);
@@ -125,6 +131,10 @@ function hasControlKey(item: unknown, key: string, type: string): boolean {
 		return false;
 	}
 	return item.control.key === key && item.control.type === type;
+}
+
+function hasName(item: unknown, name: string): boolean {
+	return isSettingItemShape(item) && item.name === name;
 }
 
 function hasRender(item: unknown): boolean {

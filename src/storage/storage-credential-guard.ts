@@ -11,6 +11,9 @@ export function formatActionError(error: unknown): string {
 	if (!(error instanceof Error)) {
 		return t('errors.imageActionFailed');
 	}
+	if (isListAccessDenied(error)) {
+		return t('errors.galleryListAccessDenied');
+	}
 	const code = readErrorCode(error);
 	if (code && (error.message === 'UnknownError' || error.message === code)) {
 		if (code === 'Unauthorized') {
@@ -22,6 +25,23 @@ export function formatActionError(error: unknown): string {
 		return t('errors.storageErrorWithMessage', { code, message: error.message });
 	}
 	return error.message;
+}
+
+export function isListAccessDenied(error: unknown): boolean {
+	let current: unknown = error;
+	const seen = new Set<unknown>();
+	while (current instanceof Error && !seen.has(current)) {
+		seen.add(current);
+		const code = readErrorCode(current);
+		if (code === 'AccessDenied') {
+			return true;
+		}
+		if (/access\s*denied/i.test(current.message)) {
+			return true;
+		}
+		current = current.cause;
+	}
+	return false;
 }
 
 export function validateStorageSecrets(

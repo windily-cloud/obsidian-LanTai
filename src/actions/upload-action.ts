@@ -6,9 +6,11 @@ import type { AttachmentPathResolver } from '../path/attachment-path-resolver.ts
 import type { NameTemplateContext } from '../path/name-template-context.ts';
 import type { LinkStyle } from '../settings/plugin-settings.ts';
 import type { ObjectStorage } from '../storage/object-storage.ts';
+import type { UploadHistoryEntry } from '../storage/upload-history.ts';
 import type { ActionResult } from './action-result.ts';
 
 import { t } from '../i18n/index.ts';
+import { probeObjectExists } from '../storage/probe-object-exists.ts';
 
 interface UploadActionInput {
 	ctx: NameTemplateContext;
@@ -19,6 +21,8 @@ interface UploadActionInput {
 	note: NoteContent;
 	noteFolderPath: string;
 	objectKeyTemplate: string;
+	profileId: string;
+	recordUpload(entry: UploadHistoryEntry): Promise<void>;
 	ref: ImageRef;
 	storage: ObjectStorage;
 	vault: VaultBinary;
@@ -39,7 +43,7 @@ export class UploadAction {
 			template: input.objectKeyTemplate
 		});
 
-		if (await input.storage.exists(objectKey)) {
+		if ((await probeObjectExists(input.storage, objectKey)) === true) {
 			return { ok: false, reason: 'conflict' };
 		}
 
@@ -63,6 +67,17 @@ export class UploadAction {
 
 		if (input.deleteSourceAfterUpload && !(await input.hasRemainingReference())) {
 			await input.vault.trash(input.localPath);
+		}
+
+		try {
+			await input.recordUpload({
+				key: objectKey,
+				profileId: input.profileId,
+				timestamp: Date.now(),
+				url: publicUrl
+			});
+		} catch {
+			// History persistence must not affect the upload result.
 		}
 
 		return { ok: true };

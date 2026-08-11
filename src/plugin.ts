@@ -11,7 +11,9 @@ import { ObsidianDesktopFileActions } from './adapters/obsidian/desktop-file-act
 import { ObsidianHttpFetch } from './adapters/obsidian/http-fetch.obsidian.ts';
 import { SaveAttachmentPatchComponent } from './adapters/obsidian/save-attachment.obsidian.ts';
 import { ObsidianSecretStore } from './adapters/obsidian/secret-store.obsidian.ts';
+import { ObsidianUploadHistoryStore } from './adapters/obsidian/upload-history.obsidian.ts';
 import { ObsidianVaultBinary } from './adapters/obsidian/vault-binary.obsidian.ts';
+import { ObsidianVaultImageBrowser } from './adapters/obsidian/vault-image-browser.obsidian.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
 import { ImageLinkParser } from './link/image-link-parser.ts';
 import { ImageLinkService } from './link/image-link-service.ts';
@@ -22,10 +24,16 @@ import {
 	PluginSettings,
 	PluginSettingsTab
 } from './settings/plugin-settings.ts';
+import { createGallerySource } from './storage/gallery-source-factory.ts';
 import { createObjectStorage } from './storage/object-storage-factory.ts';
 import { CommandRegistrar } from './ui/command-registrar.ts';
+import { pickAndUploadGalleryImages } from './ui/gallery-uploader.ts';
 import { ImageContextMenuController } from './ui/image-context-menu-controller.ts';
 import { registerStorageGallery } from './ui/storage-gallery-registration.ts';
+
+interface LegacySettingsFields {
+	galleryUploadKeyTemplate?: string;
+}
 
 export class Plugin extends PluginBase {
 	/** Bound by Obsidian declarative settings (`getControlValue` / `setControlValue`). */
@@ -33,6 +41,11 @@ export class Plugin extends PluginBase {
 
 	protected override async onloadImpl(): Promise<void> {
 		this.settings = Object.assign(new PluginSettings(), await this.loadData());
+		delete (this.settings as LegacySettingsFields).galleryUploadKeyTemplate;
+		const gallerySource = this.settings.gallerySource as string;
+		if (gallerySource !== 'recent' && gallerySource !== 'bucket' && gallerySource !== 'vault') {
+			this.settings.gallerySource = 'recent';
+		}
 
 		const parser = new ImageLinkParser();
 		const linkService = new ImageLinkService(parser, new ImageLinkFormatter());
@@ -41,6 +54,8 @@ export class Plugin extends PluginBase {
 		const http = new ObsidianHttpFetch();
 		const desktop = new ObsidianDesktopFileActions(this.app);
 		const secretStore = new ObsidianSecretStore({ app: this.app });
+		const uploadHistory = new ObsidianUploadHistoryStore({ app: this.app });
+		const vaultImages = new ObsidianVaultImageBrowser({ app: this.app });
 		const facade = new ImageActionFacade({
 			createStorage: createObjectStorage,
 			download: new ObsidianBrowserDownload(),
@@ -64,6 +79,7 @@ export class Plugin extends PluginBase {
 			http,
 			localizeAction: new LocalizeAction(pathResolver, linkService),
 			parser,
+			recordUpload: (entry): Promise<void> => uploadHistory.append(entry),
 			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
 			settings: this.settings,
 			uploadAction: new UploadAction(pathResolver, linkService),
@@ -122,9 +138,27 @@ export class Plugin extends PluginBase {
 			plugin: this
 		}).register();
 		registerStorageGallery({
-			createStorage: createObjectStorage,
+			createGallerySource: (input): Promise<import('./storage/gallery-source.ts').GalleryDataSource> =>
+				createGallerySource({
+					history: uploadHistory,
+					storageFactory: createObjectStorage,
+					vaultImages,
+					...input
+				}),
+			createUploadStorage: createObjectStorage,
 			findReferences: new RemoteImageReferenceFinder({ app: this.app, parser }),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
+			pickAndUpload: (request): void => {
+				pickAndUploadGalleryImages({
+					history: uploadHistory,
+					onUploaded: (): void => {
+						request.onUploaded();
+					},
+					profileId: request.profileId,
+					storage: request.storage,
+					template: request.template
+				});
+			},
 			plugin: this,
 			saveSettings: async (): Promise<void> => this.saveData(this.settings),
 			settings: this.settings

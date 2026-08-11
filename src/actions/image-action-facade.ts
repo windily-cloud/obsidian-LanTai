@@ -12,6 +12,7 @@ import type { PluginSettings } from '../settings/plugin-settings.ts';
 import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
 import type { ObjectStorage } from '../storage/object-storage.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
+import type { UploadHistoryEntry } from '../storage/upload-history.ts';
 import type { ActionResult } from './action-result.ts';
 import type { DownloadAction } from './download-action.ts';
 import type { LocalizeAction } from './localize-action.ts';
@@ -52,6 +53,7 @@ interface ImageActionFacadeConstructorParams {
 	readonly http: HttpFetch;
 	readonly localizeAction: LocalizeAction;
 	readonly parser: ImageLinkParser;
+	recordUpload(entry: UploadHistoryEntry): Promise<void>;
 	readonly resolveVaultPath: ResolveVaultPath;
 	readonly settings: PluginSettings;
 	readonly uploadAction: UploadAction;
@@ -69,6 +71,7 @@ export class ImageActionFacade {
 	private readonly http: HttpFetch;
 	private readonly localizeAction: LocalizeAction;
 	private readonly parser: ImageLinkParser;
+	private readonly recordUpload: ImageActionFacadeConstructorParams['recordUpload'];
 	private readonly resolveVaultPath: ImageActionFacadeConstructorParams['resolveVaultPath'];
 	private readonly settings: PluginSettings;
 	private readonly uploadAction: UploadAction;
@@ -76,6 +79,7 @@ export class ImageActionFacade {
 
 	public constructor(params: ImageActionFacadeConstructorParams) {
 		this.createStorage = params.createStorage;
+		this.recordUpload = (entry): Promise<void> => params.recordUpload(entry);
 		this.download = params.download;
 		this.downloadAction = params.downloadAction;
 		this.getSecret = params.getSecret;
@@ -247,6 +251,8 @@ export class ImageActionFacade {
 			note: context.note,
 			noteFolderPath: ctx.noteFolderPath,
 			objectKeyTemplate: profile.objectKeyTemplate,
+			profileId: profile.id,
+			recordUpload: (entry): Promise<void> => this.recordUpload(entry),
 			ref,
 			storage,
 			vault: this.vault

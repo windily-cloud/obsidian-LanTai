@@ -12,17 +12,23 @@ import {
 } from './storage-gallery-view.ts';
 
 describe('storage gallery helpers', () => {
-	it('uses the independent gallery profile before the active profile', () => {
+	it('uses the gallery profile id when it exists', () => {
 		const active = profile('active', 'Active');
 		const gallery = profile('gallery', 'Gallery');
 
-		expect(selectGalleryProfile([active, gallery], 'gallery', 'active')).toBe(gallery);
+		expect(selectGalleryProfile([active, gallery], 'gallery')).toBe(gallery);
 	});
 
-	it('falls back to the active profile when the gallery profile no longer exists', () => {
+	it('does not fall back when the gallery profile no longer exists', () => {
 		const active = profile('active', 'Active');
 
-		expect(selectGalleryProfile([active], 'deleted', 'active')).toBe(active);
+		expect(selectGalleryProfile([active], 'deleted')).toBeUndefined();
+	});
+
+	it('returns undefined when no gallery profile is selected', () => {
+		const active = profile('active', 'Active');
+
+		expect(selectGalleryProfile([active], null)).toBeUndefined();
 	});
 
 	it('extracts the image name from an object key', () => {

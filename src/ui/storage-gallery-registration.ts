@@ -3,8 +3,13 @@ import type { Plugin } from 'obsidian';
 import type { RemoteImageReferenceFinder } from '../link/remote-image-reference-finder.ts';
 import type { PluginSettings } from '../settings/plugin-settings.ts';
 import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
-import type { ObjectStorageBrowser } from '../storage/object-storage.ts';
+import type {
+	CreateGallerySourceInput,
+	GalleryDataSource
+} from '../storage/gallery-source.ts';
+import type { ObjectStorage } from '../storage/object-storage.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
+import type { GalleryUploadRequest } from './gallery-uploader.ts';
 
 import { t } from '../i18n/index.ts';
 import {
@@ -13,9 +18,14 @@ import {
 } from './storage-gallery-view.ts';
 
 interface RegisterStorageGalleryParams {
-	createStorage(profile: StorageProfile, secrets: StorageSecrets): Promise<ObjectStorageBrowser>;
+	createGallerySource(input: CreateGallerySourceInput): Promise<GalleryDataSource>;
+	createUploadStorage(
+		profile: StorageProfile,
+		secrets: StorageSecrets
+	): Promise<ObjectStorage>;
 	readonly findReferences: RemoteImageReferenceFinder;
 	getSecret(name: string): null | string;
+	pickAndUpload(params: GalleryUploadRequest): void;
 	readonly plugin: Plugin;
 	saveSettings(): Promise<void>;
 	readonly settings: PluginSettings;
@@ -24,10 +34,14 @@ interface RegisterStorageGalleryParams {
 export function registerStorageGallery(params: RegisterStorageGalleryParams): void {
 	params.plugin.registerView(STORAGE_GALLERY_VIEW_TYPE, (leaf) =>
 		new StorageGalleryView({
-			createStorage: (profile, secrets): Promise<ObjectStorageBrowser> => params.createStorage(profile, secrets),
+			createGallerySource: (input): Promise<GalleryDataSource> => params.createGallerySource(input),
+			createUploadStorage: (profile, secrets): Promise<ObjectStorage> => params.createUploadStorage(profile, secrets),
 			findReferences: params.findReferences,
 			getSecret: (name): null | string => params.getSecret(name),
 			leaf,
+			pickAndUpload: (uploadParams): void => {
+				params.pickAndUpload(uploadParams);
+			},
 			saveSettings: (): Promise<void> => params.saveSettings(),
 			settings: params.settings
 		}));

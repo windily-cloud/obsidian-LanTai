@@ -43,6 +43,7 @@ export class PluginSettings {
 	public attachmentBase: AttachmentBase = 'note';
 	public deleteSourceAfterUpload = false;
 	public galleryProfileId: null | string = null;
+	public gallerySource: 'bucket' | 'recent' | 'vault' = 'recent';
 	public linkStyle: LinkStyle = 'wiki';
 	// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 	public localPathTemplate = '${originalName}.${ext}';
@@ -84,6 +85,9 @@ export class PluginSettingsTab extends PluginSettingTab {
 				break;
 			case 'deleteSourceAfterUpload':
 				this.settings.deleteSourceAfterUpload = Boolean(value);
+				break;
+			case 'gallerySource':
+				this.settings.gallerySource = value as PluginSettings['gallerySource'];
 				break;
 			case 'linkStyle':
 				this.settings.linkStyle = value as LinkStyle;

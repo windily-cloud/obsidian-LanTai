@@ -6,6 +6,7 @@ import {
 
 import {
 	formatActionError,
+	isListAccessDenied,
 	validateStorageSecrets
 } from '../storage-credential-guard.ts';
 
@@ -49,6 +50,21 @@ describe('validateStorageSecrets', () => {
 });
 
 describe('formatActionError', () => {
+	it('explains AccessDenied list failures for the gallery', () => {
+		const error = Object.assign(new Error('Access Denied'), {
+			code: 'AccessDenied'
+		});
+		expect(formatActionError(error)).toBe(
+			'Listing the bucket was denied. Grant ListBucket permission for this key.'
+		);
+		expect(isListAccessDenied(error)).toBe(true);
+		expect(isListAccessDenied(
+			new Error('FilesError: Access Denied', {
+				cause: Object.assign(new Error('Access Denied'), { code: 'AccessDenied' })
+			})
+		)).toBe(true);
+	});
+
 	it('explains opaque UnknownError with Unauthorized code', () => {
 		const error = Object.assign(new Error('UnknownError'), {
 			code: 'Unauthorized'

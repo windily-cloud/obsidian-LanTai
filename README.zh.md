@@ -43,14 +43,14 @@ Obsidian **桌面端**插件：在本地库与对象存储之间上传、本地�
 - **模板：** 本地路径模板与各配置档的对象键模板；命名变量白名单：`noteFileName`、`noteFolderName`、`noteFilePath`、`noteFolderPath`、`date`、`uuid`、`random`、`originalName`、`ext`。
 - **链接风格：** 本地路径可选 Wiki / Markdown（默认 Wiki）；**远程 http(s) URL 一律 Markdown** `![](https://...)`。提供当前笔记内图片链接的 Wiki ↔ Markdown 转换命令。
 - **上传后删源**（可选）：上传并替换链接成功后，将本地源文件移入 Obsidian 回收站。
-- **S3 图库：** 侧边栏 Ribbon 浏览、搜索与管理对象。
+- **画廊：** 侧边栏 Ribbon 打开画廊，浏览、搜索与管理对象。
 
 ## 触发方式
 
 - **图片右键** — 仅 Markdown **编辑态**（所见即所得 / 源码有渲染图）。阅读/预览模式使用 Obsidian 原生菜单。
 - **命令面板** — 单张上传 / 本地化 / 下载；整篇上传 / 本地化；链接风格转换。
 - **设置 → LanTai** — General（附件基点、本地路径模板、链接风格）与 S3（配置档、当前启用、上传后删源）。
-- **Ribbon** — 浏览 S3 图片。
+- **Ribbon** — 画廊。
 
 ## 限制
 

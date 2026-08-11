@@ -1,8 +1,13 @@
 import {
+	Notice,
 	SecretComponent,
 	Setting
 } from 'obsidian';
 
+import type {
+	ConnectionCheckId,
+	StorageConnectionTestReport
+} from '../../../storage/test-storage-connection.ts';
 import type { StorageProfileRegistry } from '../../helpers/storage-profile-registry.ts';
 import type {
 	StorageProfileFieldKey,
@@ -15,6 +20,8 @@ import type {
 } from './storage-profile.ts';
 
 import { t } from '../../../i18n/index.ts';
+import { createObjectStorage } from '../../../storage/object-storage-factory.ts';
+import { testStorageConnection } from '../../../storage/test-storage-connection.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
@@ -28,6 +35,11 @@ export interface S3SectionContext extends SettingsSectionContext {
 	readonly profileDrafts: Map<string, StorageProfile>;
 	readonly registry: StorageProfileRegistry;
 	toggleProfileExpanded(profileId: string): void;
+}
+
+interface ConnectionTestButton {
+	setButtonText(text: string): unknown;
+	setDisabled(disabled: boolean): unknown;
 }
 
 export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionContext): void {
@@ -67,6 +79,25 @@ export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionCon
 	} else {
 		for (const profile of profiles) {
 			displayProfileCard(containerEl, ctx, profile);
+		}
+	}
+}
+
+function connectionCheckLabel(id: ConnectionCheckId): string {
+	switch (id) {
+		case 'client':
+			return t('settings.testCheckClient');
+		case 'head':
+			return t('settings.testCheckHead');
+		case 'list':
+			return t('settings.testCheckList');
+		case 'secrets':
+			return t('settings.testCheckSecrets');
+		case 'upload':
+			return t('settings.testCheckUpload');
+		default: {
+			const _exhaustive: never = id;
+			return _exhaustive;
 		}
 	}
 }
@@ -130,6 +161,19 @@ function displayProfileBody(
 	for (const field of StorageProviderFields.fieldsFor(draft.provider)) {
 		displayProfileField(parentEl, ctx, draft, field);
 	}
+
+	const testSetting = new Setting(parentEl)
+		.setName(t('settings.testConnection'))
+		.setDesc('');
+	testSetting.descEl.addClass('lantai-connection-test-desc');
+	testSetting.addButton((button) => {
+		button.setButtonText(t('settings.testConnection')).onClick(() => {
+			runConnectionTest(ctx, draft, button, testSetting).catch((error: unknown) => {
+				console.error('Connection test failed', error);
+				new Notice(error instanceof Error ? error.message : t('settings.testConnectionFailed'));
+			});
+		});
+	});
 
 	const actions = new Setting(parentEl);
 	if (!isActive) {
@@ -261,6 +305,23 @@ function displaySecretField(
 		);
 }
 
+function localizeConnectionReport(report: StorageConnectionTestReport): string {
+	return report.checks
+		.map((check) => {
+			const label = connectionCheckLabel(check.id);
+			let mark: string;
+			if (check.status === 'pass') {
+				mark = '✓';
+			} else if (check.status === 'skip') {
+				mark = '–';
+			} else {
+				mark = '✗';
+			}
+			return check.detail ? `${mark} ${label}: ${check.detail}` : `${mark} ${label}`;
+		})
+		.join('\n');
+}
+
 function objectKeyTemplateDesc(ctx: S3SectionContext, template: string): string {
 	try {
 		const preview = ctx.pathResolver.resolveObjectKey({
@@ -302,6 +363,30 @@ function readStringField(profile: StorageProfile, key: StorageProfileFieldKey): 
 			const _exhaustive: never = key;
 			return _exhaustive;
 		}
+	}
+}
+
+async function runConnectionTest(
+	ctx: S3SectionContext,
+	draft: StorageProfile,
+	button: ConnectionTestButton,
+	resultSetting: Setting
+): Promise<void> {
+	button.setDisabled(true);
+	button.setButtonText(t('settings.testConnectionRunning'));
+	resultSetting.setDesc(t('settings.testConnectionRunning'));
+	try {
+		const report = await testStorageConnection({
+			createStorage: createObjectStorage,
+			getSecret: (name): null | string => name ? ctx.app.secretStorage.getSecret(name) : null,
+			profile: draft
+		});
+		const summary = localizeConnectionReport(report);
+		resultSetting.setDesc(summary);
+		new Notice(report.ok ? t('settings.testConnectionOk') : t('settings.testConnectionFailed'));
+	} finally {
+		button.setDisabled(false);
+		button.setButtonText(t('settings.testConnection'));
 	}
 }
 

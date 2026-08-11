@@ -22,20 +22,24 @@ import type {
 import type { PluginSettings } from '../settings/plugin-settings.ts';
 import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
 import type {
-	ObjectStorageBrowser,
-	ObjectStorageFile
-} from '../storage/object-storage.ts';
+	CreateGallerySourceInput,
+	GalleryDataSource,
+	GalleryImage,
+	GallerySourceKind
+} from '../storage/gallery-source.ts';
+import type { ObjectStorage } from '../storage/object-storage.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
+import type { GalleryUploadRequest } from './gallery-uploader.ts';
 
 import { t } from '../i18n/index.ts';
 import {
 	formatActionError,
+	isListAccessDenied,
 	validateStorageSecrets
 } from '../storage/storage-credential-guard.ts';
 
 export const STORAGE_GALLERY_VIEW_TYPE = 'lantai-storage-gallery';
 
-const IMAGE_EXTENSION_RE = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i;
 const LIGHTBOX_CENTER_RATIO = 0.5;
 const LIGHTBOX_MAX_SCALE = 8;
 const LIGHTBOX_MIN_SCALE = 0.25;
@@ -51,7 +55,8 @@ interface ButtonWithDisabledState {
 
 interface DeleteStorageImageModalConstructorParams {
 	readonly app: App;
-	readonly file: ObjectStorageFile;
+	readonly description?: string;
+	readonly file: GalleryImage;
 	onConfirm(): Promise<void>;
 	readonly references: RemoteImageReference[];
 }
@@ -59,13 +64,15 @@ interface DeleteStorageImageModalConstructorParams {
 type GalleryLayout = 'cards' | 'masonry';
 
 interface StorageGalleryViewConstructorParams {
-	createStorage(
+	createGallerySource(input: CreateGallerySourceInput): Promise<GalleryDataSource>;
+	createUploadStorage(
 		profile: StorageProfile,
 		secrets: StorageSecrets
-	): Promise<ObjectStorageBrowser>;
+	): Promise<ObjectStorage>;
 	readonly findReferences: RemoteImageReferenceFinder;
 	getSecret(name: string): null | string;
 	readonly leaf: WorkspaceLeaf;
+	pickAndUpload(params: GalleryUploadRequest): void;
 	saveSettings(): Promise<void>;
 	readonly settings: PluginSettings;
 }
@@ -77,12 +84,14 @@ interface StorageImageLightboxModalConstructorParams {
 }
 
 class DeleteStorageImageModal extends Modal {
-	private readonly file: ObjectStorageFile;
+	private readonly description: string | undefined;
+	private readonly file: GalleryImage;
 	private readonly onConfirm: () => Promise<void>;
 	private readonly references: RemoteImageReference[];
 
 	public constructor(params: DeleteStorageImageModalConstructorParams) {
 		super(params.app);
+		this.description = params.description;
 		this.file = params.file;
 		this.onConfirm = (): Promise<void> => params.onConfirm();
 		this.references = params.references;
@@ -95,16 +104,14 @@ class DeleteStorageImageModal extends Modal {
 	public override onOpen(): void {
 		this.setTitle(t('gallery.deleteTitle'));
 		this.contentEl.createEl('p', {
-			text: t('gallery.permanentlyDeletes', { key: this.file.key })
+			text: this.description
+				?? t('gallery.permanentlyDeletes', { key: this.file.key })
 		});
 		if (this.references.length > 0) {
 			this.contentEl.createEl('p', {
 				text: t('gallery.referencedBy', { count: this.references.length })
 			});
-			const listEl = this.contentEl.createEl(
-				'ul',
-				'lantai-delete-references'
-			);
+			const listEl = this.contentEl.createEl('ul', 'lantai-delete-references');
 			for (const reference of this.references) {
 				listEl.createEl('li', {
 					text: `${reference.title} (${reference.path})`
@@ -170,9 +177,7 @@ class StorageImageLightboxModal extends Modal {
 		this.setTitle(this.fileName);
 		this.containerEl.addClass('lantai-gallery-lightbox-container');
 		this.modalEl.addClass('lantai-gallery-lightbox');
-		this.stageEl = this.contentEl.createDiv(
-			'lantai-gallery-lightbox-stage'
-		);
+		this.stageEl = this.contentEl.createDiv('lantai-gallery-lightbox-stage');
 		this.imageEl = this.stageEl.createEl('img', {
 			attr: {
 				alt: this.fileName,
@@ -186,9 +191,13 @@ class StorageImageLightboxModal extends Modal {
 				this.close();
 			}
 		});
-		this.stageEl.addEventListener('wheel', (event) => {
-			this.zoom(event);
-		}, { passive: false });
+		this.stageEl.addEventListener(
+			'wheel',
+			(event) => {
+				this.zoom(event);
+			},
+			{ passive: false }
+		);
 		this.imageEl.addEventListener('pointerdown', (event) => {
 			this.startDragging(event);
 		});
@@ -265,12 +274,8 @@ class StorageImageLightboxModal extends Modal {
 		);
 		const ratio = this.scale / previousScale;
 		const rect = this.stageEl.getBoundingClientRect();
-		const pointerX = event.clientX
-			- rect.left
-			- rect.width * LIGHTBOX_CENTER_RATIO;
-		const pointerY = event.clientY
-			- rect.top
-			- rect.height * LIGHTBOX_CENTER_RATIO;
+		const pointerX = event.clientX - rect.left - rect.width * LIGHTBOX_CENTER_RATIO;
+		const pointerY = event.clientY - rect.top - rect.height * LIGHTBOX_CENTER_RATIO;
 		this.offsetX = pointerX - (pointerX - this.offsetX) * ratio;
 		this.offsetY = pointerY - (pointerY - this.offsetY) * ratio;
 		this.applyTransform();
@@ -279,8 +284,15 @@ class StorageImageLightboxModal extends Modal {
 
 /* eslint-disable perfectionist/sort-classes -- lifecycle and loading steps stay in execution order. */
 export class StorageGalleryView extends ItemView {
-	private cursor: string | undefined;
-	private readonly createStorage: StorageGalleryViewConstructorParams['createStorage'];
+	private readonly createGallerySource: (
+		input: CreateGallerySourceInput
+	) => Promise<GalleryDataSource>;
+
+	private readonly createUploadStorage: (
+		profile: StorageProfile,
+		secrets: StorageSecrets
+	) => Promise<ObjectStorage>;
+
 	private emptyEl: HTMLElement | undefined;
 	private readonly findReferences: RemoteImageReferenceFinder;
 	private readonly getSecret: (name: string) => null | string;
@@ -291,20 +303,31 @@ export class StorageGalleryView extends ItemView {
 	private loadingEl: HTMLElement | undefined;
 	private layout: GalleryLayout = 'cards';
 	private layoutButton: ExtraButtonComponent | undefined;
+	private lastLoadError: unknown;
+	private readonly pickAndUpload: (params: GalleryUploadRequest) => void;
 	private profileDropdown: DropdownComponent | undefined;
+	private profileEl: HTMLElement | undefined;
 	private profileSave = noopAsync();
 	private query = '';
-	private searchIterator: AsyncGenerator<ObjectStorageFile, void> | undefined;
+	private scrollEl: HTMLElement | undefined;
 	private searchTimer: number | undefined;
 	private readonly saveSettings: () => Promise<void>;
 	private readonly settings: PluginSettings;
-	private storage: ObjectStorageBrowser | undefined;
+	private source: GalleryDataSource | undefined;
+	private readonly sourceButtons = new Map<GallerySourceKind, HTMLButtonElement>();
+	private uploadEl: HTMLElement | undefined;
+	private readonly brokenImageHandled = new Set<string>();
+	private readonly brokenImageInFlight = new Set<string>();
 
 	public constructor(params: StorageGalleryViewConstructorParams) {
 		super(params.leaf);
-		this.createStorage = (profile, secrets): Promise<ObjectStorageBrowser> => params.createStorage(profile, secrets);
+		this.createGallerySource = (input): Promise<GalleryDataSource> => params.createGallerySource(input);
+		this.createUploadStorage = (profile, secrets): Promise<ObjectStorage> => params.createUploadStorage(profile, secrets);
 		this.findReferences = params.findReferences;
 		this.getSecret = (name): null | string => params.getSecret(name);
+		this.pickAndUpload = (uploadParams): void => {
+			params.pickAndUpload(uploadParams);
+		};
 		this.saveSettings = (): Promise<void> => params.saveSettings();
 		this.settings = params.settings;
 	}
@@ -321,106 +344,121 @@ export class StorageGalleryView extends ItemView {
 		return STORAGE_GALLERY_VIEW_TYPE;
 	}
 
-	public override async onClose(): Promise<void> {
+	public override onClose(): Promise<void> {
 		this.loadGeneration += 1;
 		if (this.searchTimer !== undefined) {
 			this.contentEl.win.clearTimeout(this.searchTimer);
 		}
-		await this.searchIterator?.return();
 		this.contentEl.empty();
+		return noopAsync();
 	}
 
 	public async refresh(): Promise<void> {
-		await this.ensureGalleryProfileSelection();
 		this.refreshProfileDropdown();
-		await this.reset();
+		await this.loadActiveSource();
 	}
 
 	public override async onOpen(): Promise<void> {
-		await this.ensureGalleryProfileSelection();
 		this.contentEl.empty();
 		this.contentEl.addClass('lantai-gallery');
 
-		const toolbarEl = this.contentEl.createDiv(
-			'lantai-gallery-toolbar'
-		);
+		const toolbarEl = this.contentEl.createDiv('lantai-gallery-toolbar');
 		const searchEl = toolbarEl.createDiv('lantai-gallery-search');
 		new SearchComponent(searchEl)
 			.setPlaceholder(t('gallery.searchPlaceholder'))
 			.onChange((value) => {
 				this.scheduleSearch(value);
 			});
-		const controlsEl = toolbarEl.createDiv(
-			'lantai-gallery-controls'
-		);
-		const profileEl = controlsEl.createDiv('lantai-gallery-profile');
-		this.profileDropdown = new DropdownComponent(profileEl)
-			.onChange((profileId) => {
+		this.buildSourceSegments(toolbarEl);
+		const controlsEl = toolbarEl.createDiv('lantai-gallery-controls');
+		this.profileEl = controlsEl.createDiv('lantai-gallery-profile');
+		this.profileDropdown = new DropdownComponent(this.profileEl).onChange(
+			(profileId) => {
 				this.selectProfile(profileId).catch((error: unknown) => {
 					this.showError(error);
 				});
-			});
+			}
+		);
 		this.profileDropdown.selectEl.setAttribute(
 			'aria-label',
 			t('gallery.profileAria')
 		);
 		this.profileDropdown.selectEl.title = t('gallery.profileAria');
 		this.refreshProfileDropdown();
+		const uploadEl = controlsEl.createDiv('lantai-gallery-upload');
+		this.uploadEl = uploadEl;
+		new ExtraButtonComponent(uploadEl)
+			.setIcon('upload')
+			.setTooltip(t('gallery.uploadButton'))
+			.onClick(() => {
+				this.openUpload().catch((error: unknown) => {
+					this.showError(error);
+				});
+			});
 		const layoutEl = controlsEl.createDiv('lantai-gallery-layout');
 		this.layoutButton = new ExtraButtonComponent(layoutEl).onClick(() => {
 			this.layout = this.layout === 'cards' ? 'masonry' : 'cards';
 			this.updateLayout();
 		});
-		this.gridEl = this.contentEl.createDiv('lantai-gallery-grid');
+		this.scrollEl = this.contentEl.createDiv('lantai-gallery-body');
+		this.gridEl = this.scrollEl.createDiv('lantai-gallery-grid');
 		this.updateLayout();
-		this.emptyEl = this.contentEl.createDiv('lantai-gallery-empty');
-		this.loadingEl = this.contentEl.createDiv(
-			'lantai-gallery-loading'
-		);
-		this.registerDomEvent(this.contentEl, 'scroll', () => {
-			const remaining = this.contentEl.scrollHeight
-				- this.contentEl.scrollTop
-				- this.contentEl.clientHeight;
+		this.emptyEl = this.scrollEl.createDiv('lantai-gallery-empty');
+		this.loadingEl = this.scrollEl.createDiv('lantai-gallery-loading');
+		this.registerDomEvent(this.scrollEl, 'scroll', () => {
+			const scrollEl = this.scrollEl;
+			if (!scrollEl) {
+				return;
+			}
+			const remaining = scrollEl.scrollHeight
+				- scrollEl.scrollTop
+				- scrollEl.clientHeight;
 			if (remaining < SCROLL_LOAD_THRESHOLD) {
 				this.loadMore().catch((error: unknown) => {
 					this.showError(error);
 				});
 			}
 		});
-		await this.reset();
+		this.toggleSourceControls();
+		await this.loadActiveSource();
 	}
 
 	private async confirmDelete(
-		file: ObjectStorageFile,
+		image: GalleryImage,
 		publicUrl: string
 	): Promise<void> {
-		const storage = this.storage;
-		if (!storage) {
+		const source = this.source;
+		if (!source) {
 			return;
 		}
-		const references = await this.findReferences.find(publicUrl);
+		const references = source.kind === 'vault' ? [] : await this.findReferences.find(publicUrl);
 		new DeleteStorageImageModal({
 			app: this.app,
-			file,
+			...(source.kind === 'vault'
+				? { description: t('gallery.deletesVaultFile', { path: image.key }) }
+				: {}),
+			file: image,
 			onConfirm: async (): Promise<void> => {
-				if (storage !== this.storage) {
+				if (source !== this.source) {
 					throw new Error(t('errors.galleryProfileChanged'));
 				}
-				await storage.delete(file.key);
-				for (const card of this.gridEl?.children ?? []) {
-					if (card.getAttribute('data-object-key') === file.key) {
-						card.remove();
-						break;
-					}
-				}
-				this.updateEmptyState();
+				await source.delete(image);
+				this.removeCard(image.key);
 				new Notice(t('gallery.deletedNotice'));
 			},
 			references
 		}).open();
 	}
 
-	private async createActiveStorage(): Promise<ObjectStorageBrowser> {
+	private async createActiveSource(): Promise<GalleryDataSource> {
+		const kind = this.settings.gallerySource;
+		if (kind === 'vault') {
+			return this.createGallerySource({
+				kind,
+				profile: undefined,
+				secrets: undefined
+			});
+		}
 		const profile = this.getSelectedProfile();
 		if (!profile) {
 			throw new Error(t('errors.noActiveStorageProfile'));
@@ -442,45 +480,36 @@ export class StorageGalleryView extends ItemView {
 		if (secretProblem) {
 			throw new Error(secretProblem);
 		}
-		return this.createStorage(profile, { accessKeyId, secretAccessKey });
-	}
-
-	private async ensureGalleryProfileSelection(): Promise<void> {
-		const profile = this.getSelectedProfile();
-		const hasValidGalleryProfile = this.settings.profiles.some(
-			(item) => item.id === this.settings.galleryProfileId
-		);
-		if (!hasValidGalleryProfile && profile) {
-			this.settings.galleryProfileId = profile.id;
-			await this.queueSettingsSave();
-		}
+		return this.createGallerySource({
+			kind,
+			profile,
+			secrets: { accessKeyId, secretAccessKey }
+		});
 	}
 
 	private getSelectedProfile(): StorageProfile | undefined {
 		return selectGalleryProfile(
 			this.settings.profiles,
-			this.settings.galleryProfileId,
-			this.settings.activeProfileId
+			this.settings.galleryProfileId
 		);
 	}
 
 	private async loadMore(): Promise<void> {
-		const storage = this.storage;
-		if (this.loading || !this.hasMore || !storage) {
+		const source = this.source;
+		if (this.loading || !this.hasMore || !source) {
 			return;
 		}
 		this.loading = true;
 		this.loadingEl?.setText(t('gallery.loading'));
 		const generation = this.loadGeneration;
 		try {
-			const files = this.query
-				? await this.loadSearchPage(generation)
-				: await this.loadListPage(generation, storage);
+			const page = await source.loadMore(PAGE_SIZE);
 			if (generation !== this.loadGeneration) {
 				return;
 			}
-			for (const file of files) {
-				await this.renderFile(file, generation, storage);
+			this.hasMore = page.hasMore;
+			for (const image of page.items) {
+				await this.renderFile(image, generation);
 			}
 			this.updateEmptyState();
 		} catch (error) {
@@ -494,110 +523,76 @@ export class StorageGalleryView extends ItemView {
 				this.loadingEl?.setText('');
 			}
 		}
+		const scrollEl = this.scrollEl;
 		if (
 			generation === this.loadGeneration
-			&& this.contentEl.scrollHeight <= this.contentEl.clientHeight
+			&& scrollEl
+			&& scrollEl.scrollHeight <= scrollEl.clientHeight
 		) {
 			await this.loadMore();
 		}
 	}
 
-	private async loadListPage(
-		generation: number,
-		storage: ObjectStorageBrowser
-	): Promise<ObjectStorageFile[]> {
-		const images: ObjectStorageFile[] = [];
-		let cursor = this.cursor;
-		do {
-			const page = await storage.list({
-				...(cursor === undefined ? {} : { cursor }),
-				limit: PAGE_SIZE
-			});
-			if (generation !== this.loadGeneration) {
-				return [];
-			}
-			images.push(...page.items.filter(isImageFile));
-			cursor = page.cursor;
-			this.cursor = cursor;
-			this.hasMore = page.cursor !== undefined;
-		} while (images.length < PAGE_SIZE && this.hasMore);
-		return images;
-	}
-
-	private async loadSearchPage(
-		generation: number
-	): Promise<ObjectStorageFile[]> {
-		const images: ObjectStorageFile[] = [];
-		const iterator = this.searchIterator;
-		if (!iterator) {
-			this.hasMore = false;
-			return images;
-		}
-		while (images.length < PAGE_SIZE) {
-			const result = await iterator.next();
-			if (generation !== this.loadGeneration) {
-				return [];
-			}
-			if (result.done) {
-				this.hasMore = false;
-				break;
-			}
-			if (isImageFile(result.value)) {
-				images.push(result.value);
-			}
-		}
-		return images;
-	}
-
 	private async renderFile(
-		file: ObjectStorageFile,
-		generation: number,
-		storage: ObjectStorageBrowser
+		image: GalleryImage,
+		generation: number
 	): Promise<void> {
-		if (!this.gridEl) {
+		const source = this.source;
+		if (!this.gridEl || !source) {
 			return;
 		}
-		const publicUrl = await storage.buildPublicUrl(file.key);
+		const url = await source.thumbnailUrl(image);
 		if (generation !== this.loadGeneration) {
 			return;
 		}
 		const cardEl = this.gridEl.createDiv('lantai-gallery-card');
-		cardEl.dataset['objectKey'] = file.key;
-		cardEl.title = file.key;
+		cardEl.dataset['objectKey'] = image.key;
+		cardEl.title = image.key;
 		cardEl.tabIndex = 0;
-		const fileName = getObjectFileName(file.key);
 		cardEl.setAttribute(
 			'aria-label',
-			`${fileName}. Press Enter to view full size or Shift+F10 for actions.`
+			`${image.name}. Press Enter to view full size or Shift+F10 for actions.`
 		);
 		const imageEl = cardEl.createEl('img', {
-			attr: { alt: fileName, loading: 'lazy', src: publicUrl }
+			attr: { alt: image.name, loading: 'lazy', src: url }
 		});
 		imageEl.addClass('lantai-gallery-image');
 		const nameEl = cardEl.createDiv({
 			cls: 'lantai-gallery-name',
-			text: fileName
+			text: image.name
 		});
-		nameEl.title = file.key;
+		nameEl.title = image.key;
 		cardEl.addEventListener('dblclick', () => {
-			this.openLightbox(fileName, publicUrl);
+			this.openLightbox(image.name, url);
 		});
+		if (source.kind === 'recent') {
+			imageEl.addEventListener('error', () => {
+				this.handleBrokenImage(image, imageEl, generation).catch(
+					(error: unknown) => {
+						this.showError(error);
+					}
+				);
+			});
+		}
 		cardEl.addEventListener('contextmenu', (event) => {
 			event.preventDefault();
-			this.createFileMenu(file, publicUrl).showAtMouseEvent(event);
+			this.createFileMenu(image, url).showAtMouseEvent(event);
 		});
 		cardEl.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') {
 				event.preventDefault();
-				this.openLightbox(fileName, publicUrl);
+				this.openLightbox(image.name, url);
 				return;
 			}
-			if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) {
+			if (
+				event.key !== 'ContextMenu'
+				&& !(event.key === 'F10' && event.shiftKey)
+			) {
 				return;
 			}
 			event.preventDefault();
 			const rect = cardEl.getBoundingClientRect();
-			this.createFileMenu(file, publicUrl).showAtPosition(
+			this.createFileMenu(image, url).showAtPosition(
 				{ x: rect.left, y: rect.bottom },
 				cardEl.doc
 			);
@@ -612,51 +607,197 @@ export class StorageGalleryView extends ItemView {
 		}).open();
 	}
 
-	private createFileMenu(file: ObjectStorageFile, publicUrl: string): Menu {
-		return new Menu().addItem((item) =>
-			item
-				.setIcon('trash')
-				.setTitle(t('gallery.deleteMenu'))
-				.onClick(() => {
-					this.confirmDelete(file, publicUrl).catch((error: unknown) => {
-						this.showError(error);
-					});
-				})
-		);
+	private buildSourceSegments(container: HTMLElement): void {
+		const sourceEl = container.createDiv('lantai-gallery-source');
+		const segments: [GallerySourceKind, string][] = [
+			['recent', t('gallery.sourceRecent')],
+			['bucket', t('gallery.sourceBucket')],
+			['vault', t('gallery.sourceVault')]
+		];
+		for (const [kind, label] of segments) {
+			const button = sourceEl.createEl('button', { text: label });
+			button.addClass('lantai-gallery-source-button');
+			button.setAttribute(
+				'aria-pressed',
+				String(kind === this.settings.gallerySource)
+			);
+			button.addEventListener('click', () => {
+				this.selectSource(kind).catch((error: unknown) => {
+					this.showError(error);
+				});
+			});
+			this.sourceButtons.set(kind, button);
+		}
 	}
 
-	private async reset(): Promise<void> {
+	private createFileMenu(image: GalleryImage, publicUrl: string): Menu {
+		return new Menu()
+			.addItem((item) =>
+				item
+					.setIcon('link')
+					.setTitle(t('gallery.copyUrl'))
+					.onClick(() => {
+						this.copyUrl(publicUrl).catch((error: unknown) => {
+							this.showError(error);
+						});
+					})
+			)
+			.addItem((item) =>
+				item
+					.setIcon('trash')
+					.setTitle(t('gallery.deleteMenu'))
+					.onClick(() => {
+						this.confirmDelete(image, publicUrl).catch((error: unknown) => {
+							this.showError(error);
+						});
+					})
+			);
+	}
+
+	private async copyUrl(publicUrl: string): Promise<void> {
+		// eslint-disable-next-line n/no-unsupported-features/node-builtins -- desktop clipboard API
+		await window.navigator.clipboard.writeText(publicUrl);
+		new Notice(t('gallery.urlCopiedNotice'));
+	}
+
+	private async handleBrokenImage(
+		image: GalleryImage,
+		imageEl: HTMLImageElement,
+		generation: number
+	): Promise<void> {
+		const source = this.source;
+		if (
+			generation !== this.loadGeneration
+			|| source?.kind !== 'recent'
+			|| this.brokenImageHandled.has(image.key)
+			|| this.brokenImageInFlight.has(image.key)
+		) {
+			return;
+		}
+		this.brokenImageInFlight.add(image.key);
+		try {
+			const stillPresent = await source.verify(image);
+			if (generation !== this.loadGeneration) {
+				return;
+			}
+			this.brokenImageHandled.add(image.key);
+			if (stillPresent) {
+				const url = await source.thumbnailUrl(image);
+				if (generation !== this.loadGeneration) {
+					return;
+				}
+				imageEl.src = url;
+				return;
+			}
+			await source.purge(image);
+			this.removeCard(image.key);
+			new Notice(t('gallery.brokenRemovedNotice'));
+		} finally {
+			this.brokenImageInFlight.delete(image.key);
+		}
+	}
+
+	private async onUploaded(): Promise<void> {
+		if (this.settings.gallerySource === 'recent') {
+			await this.reset();
+			return;
+		}
+		await this.selectSource('recent');
+	}
+
+	private async openUpload(): Promise<void> {
+		if (this.settings.gallerySource === 'vault') {
+			return;
+		}
+		const profile = this.getSelectedProfile();
+		if (!profile) {
+			throw new Error(t('errors.noActiveStorageProfile'));
+		}
+		if (!profile.publicBaseUrl.trim()) {
+			throw new Error(t('errors.publicBaseUrlRequired'));
+		}
+		const accessKeyId = this.getSecret(profile.accessKeyIdSecretName);
+		const secretAccessKey = this.getSecret(profile.secretAccessKeySecretName);
+		if (!accessKeyId || !secretAccessKey) {
+			throw new Error(t('errors.storageSecretsMissing'));
+		}
+		const secretProblem = validateStorageSecrets({
+			accessKeyId,
+			accessKeyIdSecretName: profile.accessKeyIdSecretName,
+			secretAccessKey,
+			secretAccessKeySecretName: profile.secretAccessKeySecretName
+		});
+		if (secretProblem) {
+			throw new Error(secretProblem);
+		}
+		const storage = await this.createUploadStorage(profile, {
+			accessKeyId,
+			secretAccessKey
+		});
+		this.pickAndUpload({
+			onUploaded: (): void => {
+				this.onUploaded().catch((error: unknown) => {
+					this.showError(error);
+				});
+			},
+			profileId: profile.id,
+			storage,
+			template: profile.objectKeyTemplate
+		});
+	}
+
+	private removeCard(key: string): void {
+		for (const card of this.gridEl?.children ?? []) {
+			if (card.getAttribute('data-object-key') === key) {
+				card.remove();
+				break;
+			}
+		}
+		this.updateEmptyState();
+	}
+
+	private async reset(): Promise<boolean> {
 		const generation = ++this.loadGeneration;
-		const previousIterator = this.searchIterator;
-		this.searchIterator = undefined;
-		this.cursor = undefined;
+		this.brokenImageHandled.clear();
+		this.brokenImageInFlight.clear();
 		this.gridEl?.empty();
 		this.hasMore = true;
 		this.loading = false;
 		this.emptyEl?.setText('');
 		this.loadingEl?.setText(t('gallery.loading'));
 		try {
-			await previousIterator?.return();
+			const source = await this.createActiveSource();
 			if (generation !== this.loadGeneration) {
-				return;
+				return true;
 			}
-			const storage = await this.createActiveStorage();
-			if (generation !== this.loadGeneration) {
-				return;
-			}
-			this.storage = storage;
-			if (this.query) {
-				this.searchIterator = storage.search(this.query);
-			}
+			this.source = source;
+			source.setQuery(this.query);
 			await this.loadMore();
+			return true;
 		} catch (error) {
 			if (generation !== this.loadGeneration) {
-				return;
+				return true;
 			}
-			this.storage = undefined;
+			this.source = undefined;
 			this.hasMore = false;
-			this.showError(error);
+			this.loading = false;
+			this.loadingEl?.setText('');
+			this.lastLoadError = error;
+			return false;
 		}
+	}
+
+	private async loadActiveSource(): Promise<void> {
+		if (!(await this.reset())) {
+			this.presentLoadFailure();
+		}
+	}
+
+	private presentLoadFailure(): void {
+		if (this.lastLoadError === undefined) {
+			return;
+		}
+		this.showError(this.lastLoadError);
 	}
 
 	private async selectProfile(profileId: string): Promise<void> {
@@ -667,15 +808,63 @@ export class StorageGalleryView extends ItemView {
 		this.settings.galleryProfileId = profileId;
 		try {
 			await this.queueSettingsSave();
-			if (this.settings.galleryProfileId === profileId) {
-				await this.reset();
-			}
 		} catch (error) {
 			if (this.settings.galleryProfileId === profileId) {
 				this.settings.galleryProfileId = previousProfileId;
 				this.refreshProfileDropdown();
 			}
 			throw error;
+		}
+		if (this.settings.galleryProfileId !== profileId) {
+			return;
+		}
+		const loaded = await this.reset();
+		if (!loaded) {
+			this.presentLoadFailure();
+		}
+	}
+
+	private async selectSource(kind: GallerySourceKind): Promise<void> {
+		if (kind === this.settings.gallerySource) {
+			return;
+		}
+		const previousKind = this.settings.gallerySource;
+		this.settings.gallerySource = kind;
+		this.updateSourceButtons();
+		try {
+			await this.queueSettingsSave();
+		} catch (error) {
+			if (this.settings.gallerySource === kind) {
+				this.settings.gallerySource = previousKind;
+				this.updateSourceButtons();
+			}
+			throw error;
+		}
+		if (this.settings.gallerySource !== kind) {
+			return;
+		}
+		this.toggleSourceControls();
+		if (!(await this.reset())) {
+			this.presentLoadFailure();
+		}
+	}
+
+	private toggleSourceControls(): void {
+		const isVault = this.settings.gallerySource === 'vault';
+		if (this.profileEl) {
+			this.profileEl.style.display = isVault ? 'none' : '';
+		}
+		if (this.uploadEl) {
+			this.uploadEl.style.display = isVault ? 'none' : '';
+		}
+	}
+
+	private updateSourceButtons(): void {
+		for (const [kind, button] of this.sourceButtons) {
+			button.setAttribute(
+				'aria-pressed',
+				String(kind === this.settings.gallerySource)
+			);
 		}
 	}
 
@@ -690,9 +879,15 @@ export class StorageGalleryView extends ItemView {
 			return;
 		}
 		this.profileDropdown.selectEl.empty();
+		const galleryProfileId = this.settings.galleryProfileId;
+		const knownSelected = galleryProfileId !== null
+			&& this.settings.profiles.some((profile) => profile.id === galleryProfileId);
 		if (this.settings.profiles.length === 0) {
 			this.profileDropdown.addOption('', t('gallery.noProfiles'));
 		} else {
+			if (!knownSelected) {
+				this.profileDropdown.addOption('', t('gallery.selectProfile'));
+			}
 			for (const profile of this.settings.profiles) {
 				this.profileDropdown.addOption(
 					profile.id,
@@ -701,7 +896,7 @@ export class StorageGalleryView extends ItemView {
 			}
 		}
 		this.profileDropdown
-			.setValue(this.getSelectedProfile()?.id ?? '')
+			.setValue(knownSelected ? galleryProfileId : '')
 			.setDisabled(this.settings.profiles.length === 0);
 	}
 
@@ -712,9 +907,15 @@ export class StorageGalleryView extends ItemView {
 		}
 		this.searchTimer = this.contentEl.win.setTimeout(() => {
 			this.query = query;
-			this.reset().catch((error: unknown) => {
-				this.showError(error);
-			});
+			this.reset()
+				.then((loaded) => {
+					if (!loaded) {
+						this.presentLoadFailure();
+					}
+				})
+				.catch((error: unknown) => {
+					this.showError(error);
+				});
 		}, SEARCH_DEBOUNCE_MS);
 	}
 
@@ -723,7 +924,11 @@ export class StorageGalleryView extends ItemView {
 		this.loading = false;
 		this.loadingEl?.setText('');
 		this.emptyEl?.setText(message);
-		console.error('Failed to load S3 images', error);
+		if (isListAccessDenied(error)) {
+			console.warn('Gallery bucket list denied', error);
+			return;
+		}
+		console.error('Failed to load gallery images', error);
 	}
 
 	private updateEmptyState(): void {
@@ -738,13 +943,12 @@ export class StorageGalleryView extends ItemView {
 
 	private updateLayout(): void {
 		const isMasonry = this.layout === 'masonry';
-		this.gridEl?.toggleClass(
-			'lantai-gallery-grid--masonry',
-			isMasonry
-		);
+		this.gridEl?.toggleClass('lantai-gallery-grid--masonry', isMasonry);
 		this.layoutButton
 			?.setIcon(isMasonry ? 'layout-grid' : 'columns-3')
-			.setTooltip(isMasonry ? t('gallery.switchToCard') : t('gallery.switchToMasonry'));
+			.setTooltip(
+				isMasonry ? t('gallery.switchToCard') : t('gallery.switchToMasonry')
+			);
 		const buttonEl = this.layoutButton?.extraSettingsEl;
 		if (buttonEl) {
 			buttonEl.setAttribute('aria-pressed', String(isMasonry));
@@ -762,13 +966,10 @@ export function getObjectFileName(objectKey: string): string {
 /** Exposed for unit tests. */
 export function selectGalleryProfile(
 	profiles: readonly StorageProfile[],
-	galleryProfileId: null | string,
-	activeProfileId: null | string
+	galleryProfileId: null | string
 ): StorageProfile | undefined {
-	return profiles.find((profile) => profile.id === galleryProfileId)
-		?? profiles.find((profile) => profile.id === activeProfileId);
-}
-
-function isImageFile(file: ObjectStorageFile): boolean {
-	return IMAGE_EXTENSION_RE.test(file.key);
+	if (!galleryProfileId) {
+		return undefined;
+	}
+	return profiles.find((profile) => profile.id === galleryProfileId);
 }
