@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.5
+
+- fix: 收紧仅文件内使用的 export，通过 find-overexposed
+- feat: 增强画廊多数据源、上传历史与连接测试
+
 ## 0.0.4
 
 - fix: 生产构建产物输出到 dist/ 而非 dist/build
