@@ -9,6 +9,7 @@ import type {
 
 import {
 	appendHistoryEntry,
+	filterHistoryEntries,
 	MAX_HISTORY_ENTRIES,
 	removeHistoryEntry
 } from '../../storage/upload-history.ts';
@@ -47,7 +48,7 @@ export class ObsidianUploadHistoryStore implements UploadHistoryStore {
 	}
 
 	public list(profileId: string): UploadHistoryEntry[] {
-		return this.entries.filter((entry) => entry.profileId === profileId);
+		return filterHistoryEntries(this.entries, profileId);
 	}
 
 	public ready(): Promise<void> {

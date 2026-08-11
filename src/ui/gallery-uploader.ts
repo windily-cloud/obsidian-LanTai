@@ -16,7 +16,7 @@ export interface GalleryUploadRequest {
 	readonly template: string;
 }
 
-export interface PickAndUploadGalleryImagesParams extends GalleryUploadRequest {
+interface PickAndUploadGalleryImagesParams extends GalleryUploadRequest {
 	readonly history: UploadHistoryStore;
 }
 

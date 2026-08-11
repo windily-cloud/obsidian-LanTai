@@ -16,24 +16,18 @@ import {
 
 export type ConnectionCheckId = 'client' | 'head' | 'list' | 'secrets' | 'upload';
 
-export interface ConnectionCheckResult {
-	readonly detail?: string;
-	readonly id: ConnectionCheckId;
-	readonly status: ConnectionCheckStatus;
-}
-
-export type ConnectionCheckStatus = 'fail' | 'pass' | 'skip';
-
 export interface StorageConnectionTestReport {
 	readonly checks: ConnectionCheckResult[];
 	readonly ok: boolean;
 }
 
-export interface TestStorageConnectionInput {
-	readonly createStorage: CreateStorage;
-	getSecret(name: string): null | string;
-	readonly profile: StorageProfile;
+interface ConnectionCheckResult {
+	readonly detail?: string;
+	readonly id: ConnectionCheckId;
+	readonly status: ConnectionCheckStatus;
 }
+
+type ConnectionCheckStatus = 'fail' | 'pass' | 'skip';
 
 type CreateStorage = (
 	profile: StorageProfile,
@@ -50,23 +44,13 @@ interface ResolveSecretsSuccess {
 	readonly value: StorageSecrets;
 }
 
-const PROBE_KEY_PREFIX = 'lantai-connection-test/';
-
-export function formatConnectionTestReport(report: StorageConnectionTestReport): string {
-	return report.checks
-		.map((check) => {
-			let mark: string;
-			if (check.status === 'pass') {
-				mark = 'OK';
-			} else if (check.status === 'skip') {
-				mark = 'SKIP';
-			} else {
-				mark = 'FAIL';
-			}
-			return check.detail ? `${check.id}: ${mark} — ${check.detail}` : `${check.id}: ${mark}`;
-		})
-		.join('\n');
+interface TestStorageConnectionInput {
+	readonly createStorage: CreateStorage;
+	getSecret(name: string): null | string;
+	readonly profile: StorageProfile;
 }
+
+const PROBE_KEY_PREFIX = 'lantai-connection-test/';
 
 /** Runs non-destructive-then-cleanup probes against a storage profile. */
 export async function testStorageConnection(

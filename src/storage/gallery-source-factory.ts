@@ -15,16 +15,16 @@ import { BucketGallerySource } from './bucket-gallery-source.ts';
 import { RecentUploadsSource } from './recent-uploads-source.ts';
 import { VaultGallerySource } from './vault-gallery-source.ts';
 
-export interface GallerySourceFactoryInput extends CreateGallerySourceInput {
-	readonly history: UploadHistoryStore;
-	readonly storageFactory: CreateStorage;
-	readonly vaultImages: VaultImageBrowser;
-}
-
 type CreateStorage = (
 	profile: StorageProfile,
 	secrets: StorageSecrets
 ) => Promise<ObjectStorage & ObjectStorageBrowser>;
+
+interface GallerySourceFactoryInput extends CreateGallerySourceInput {
+	readonly history: UploadHistoryStore;
+	readonly storageFactory: CreateStorage;
+	readonly vaultImages: VaultImageBrowser;
+}
 
 export async function createGallerySource(
 	input: GallerySourceFactoryInput

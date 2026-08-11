@@ -7,10 +7,7 @@ import {
 
 import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
 
-import {
-	formatConnectionTestReport,
-	testStorageConnection
-} from '../test-storage-connection.ts';
+import { testStorageConnection } from '../test-storage-connection.ts';
 import { FakeObjectStorage } from './fake-object-storage.ts';
 
 function profile(partial?: Partial<StorageProfile>): StorageProfile {
@@ -66,7 +63,7 @@ describe('testStorageConnection', () => {
 			profile: profile()
 		});
 		expect(report.ok).toBe(true);
-		expect(formatConnectionTestReport(report)).toContain('upload: OK');
+		expect(report.checks.find((check) => check.id === 'upload')?.status).toBe('pass');
 		expect(storage.deletedKeys.length).toBe(1);
 	});
 });
