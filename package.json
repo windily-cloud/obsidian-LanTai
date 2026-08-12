@@ -77,9 +77,6 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1092.0",
-    "@aws-sdk/s3-presigned-post": "^3.1092.0",
-    "@aws-sdk/s3-request-presigner": "^3.1092.0",
-    "files-sdk": "^2.2.0"
+    "aws4fetch": "^1.0.20"
   }
 }

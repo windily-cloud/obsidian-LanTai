@@ -10,6 +10,7 @@ import {
 	Menu,
 	Modal,
 	Notice,
+	Platform,
 	SearchComponent,
 	Setting
 } from 'obsidian';
@@ -37,6 +38,11 @@ import {
 	isListAccessDenied,
 	validateStorageSecrets
 } from '../storage/storage-credential-guard.ts';
+import {
+	LONG_PRESS_HOLD_MS,
+	LONG_PRESS_MAX_MOVE_PX,
+	LongPressGesture
+} from './long-press-gesture.ts';
 
 export const STORAGE_GALLERY_VIEW_TYPE = 'lantai-storage-gallery';
 
@@ -575,9 +581,16 @@ export class StorageGalleryView extends ItemView {
 			});
 		}
 		cardEl.addEventListener('contextmenu', (event) => {
+			if (cardEl.dataset['lantaiLongPress'] === '1') {
+				event.preventDefault();
+				return;
+			}
 			event.preventDefault();
 			this.createFileMenu(image, url).showAtMouseEvent(event);
 		});
+		if (Platform.isMobile) {
+			this.bindCardLongPress(cardEl, image, url);
+		}
 		cardEl.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') {
 				event.preventDefault();
@@ -605,6 +618,61 @@ export class StorageGalleryView extends ItemView {
 			fileName,
 			publicUrl
 		}).open();
+	}
+
+	private bindCardLongPress(
+		cardEl: HTMLElement,
+		image: GalleryImage,
+		url: string
+	): void {
+		let gesture: LongPressGesture | null = null;
+		cardEl.addEventListener('touchstart', (event) => {
+			if (event.touches.length !== 1) {
+				gesture?.cancel();
+				gesture = null;
+				return;
+			}
+			const touch = event.touches[0];
+			if (!touch) {
+				return;
+			}
+			delete cardEl.dataset['lantaiLongPress'];
+			gesture = new LongPressGesture({
+				holdMs: LONG_PRESS_HOLD_MS,
+				maxMovePx: LONG_PRESS_MAX_MOVE_PX,
+				onLongPress: (point): void => {
+					cardEl.dataset['lantaiLongPress'] = '1';
+					this.createFileMenu(image, url).showAtPosition(
+						{ x: point.x, y: point.y },
+						cardEl.doc
+					);
+				}
+			});
+			gesture.touchStart({ x: touch.clientX, y: touch.clientY });
+		}, { passive: true });
+		cardEl.addEventListener('touchmove', (event) => {
+			const touch = event.touches[0];
+			if (!gesture || !touch) {
+				return;
+			}
+			gesture.touchMove({ x: touch.clientX, y: touch.clientY });
+		}, { passive: true });
+		const end = (event: TouchEvent): void => {
+			if (!gesture) {
+				return;
+			}
+			gesture.touchEnd();
+			if (event.type === 'touchend' && !gesture.consumeFired() && !gesture.wasMoved()) {
+				this.openLightbox(image.name, url);
+			}
+		};
+		cardEl.addEventListener('touchend', end, { passive: true });
+		cardEl.addEventListener('touchcancel', end, { passive: true });
+		cardEl.addEventListener('click', (event) => {
+			if (gesture?.consumeFired() || cardEl.dataset['lantaiLongPress'] === '1') {
+				event.preventDefault();
+			}
+		});
 	}
 
 	private buildSourceSegments(container: HTMLElement): void {

@@ -1,5 +1,6 @@
 import {
 	Notice,
+	requestUrl,
 	SecretComponent,
 	Setting
 } from 'obsidian';
@@ -20,7 +21,8 @@ import type {
 } from './storage-profile.ts';
 
 import { t } from '../../../i18n/index.ts';
-import { createObjectStorage } from '../../../storage/object-storage-factory.ts';
+import { createObjectStorageFactory } from '../../../storage/object-storage-factory.ts';
+import { RequestUrlObjectStorageTransport } from '../../../storage/request-url-object-storage-transport.ts';
 import { testStorageConnection } from '../../../storage/test-storage-connection.ts';
 import {
 	attachTokenInfoButton,
@@ -377,7 +379,9 @@ async function runConnectionTest(
 	resultSetting.setDesc(t('settings.testConnectionRunning'));
 	try {
 		const report = await testStorageConnection({
-			createStorage: createObjectStorage,
+			createStorage: createObjectStorageFactory(
+				new RequestUrlObjectStorageTransport({ requestUrl })
+			),
 			getSecret: (name): null | string => name ? ctx.app.secretStorage.getSecret(name) : null,
 			profile: draft
 		});

@@ -82,6 +82,71 @@ describe('readRenderedImageIdentity', () => {
 			)
 		).toBe(true);
 	});
+
+	it('keeps loopback http src remote by default (desktop)', () => {
+		const image = createDiv().createEl('img', {
+			attr: { src: 'http://127.0.0.1:27123/vault/photo.png' }
+		});
+
+		expect(readRenderedImageIdentity(image)).toEqual({
+			kind: 'remote',
+			target: 'http://127.0.0.1:27123/vault/photo.png'
+		});
+	});
+
+	it('treats loopback, capacitor, file, and blob src as local when asked', () => {
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'http://127.0.0.1:27123/vault/photo.png' }
+				}),
+				true
+			)
+		).toEqual({
+			kind: 'local',
+			target: 'http://127.0.0.1:27123/vault/photo.png'
+		});
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'http://localhost:1234/photo.png' }
+				}),
+				true
+			)?.kind
+		).toBe('local');
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'capacitor://localhost/_capacitor_file_/photo.png' }
+				}),
+				true
+			)?.kind
+		).toBe('local');
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'file:///vault/photo.png' }
+				}),
+				true
+			)?.kind
+		).toBe('local');
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'blob:http://localhost/abc' }
+				}),
+				true
+			)?.kind
+		).toBe('local');
+		expect(
+			readRenderedImageIdentity(
+				createDiv().createEl('img', {
+					attr: { src: 'https://cdn.example.com/photo.png' }
+				}),
+				true
+			)?.kind
+		).toBe('remote');
+	});
 });
 
 describe('findRenderedImageRef', () => {
@@ -202,6 +267,19 @@ describe('findRenderedImageRef', () => {
 		);
 	});
 
+	it('matches a mobile loopback src to a local wiki link', () => {
+		const root = createDiv();
+		const image = root.createEl('img', {
+			attr: { src: 'http://127.0.0.1:27123/vault/photo.png' }
+		});
+		const refs = parser.parse('![[photo.png]]');
+
+		expect(
+			findRenderedImageRef(refs, image, root, undefined, true)?.target
+		).toBe('photo.png');
+		expect(findRenderedImageRef(refs, image, root)).toBeNull();
+	});
+
 	it('resolves duplicates when the search root is only one source-view fragment', () => {
 		const sourceView = createDiv({ cls: 'markdown-source-view' });
 		const block1 = sourceView.createDiv();
@@ -275,18 +353,22 @@ describe('menuCapabilities', () => {
 			})
 		).toEqual({
 			copy: true,
+			copyAbsolutePath: false,
 			copyPath: false,
 			deleteFile: false,
 			download: true,
 			layout: true,
 			localize: false,
 			move: false,
+			openLink: false,
 			openLocal: false,
 			openTab: false,
+			openWindow: false,
 			remove: false,
 			rename: false,
 			replace: false,
 			resetSize: false,
+			share: false,
 			star: false,
 			upload: false
 		});
@@ -309,21 +391,86 @@ describe('menuCapabilities', () => {
 			})
 		).toEqual({
 			copy: true,
+			copyAbsolutePath: true,
 			copyPath: true,
 			deleteFile: true,
 			download: true,
 			layout: true,
 			localize: false,
 			move: true,
+			openLink: false,
 			openLocal: true,
 			openTab: true,
+			openWindow: true,
 			remove: true,
 			rename: true,
 			replace: true,
 			resetSize: true,
+			share: false,
 			star: true,
 			upload: true
 		});
+	});
+
+	it('hides desktop-only actions on mobile while restoring native image actions', () => {
+		expect(
+			menuCapabilities({
+				identity: { kind: 'local', target: 'photo.png' },
+				platform: { canShare: true, isMobile: true },
+				ref: {
+					decorations: [],
+					end: 14,
+					isRemote: false,
+					kind: 'wiki',
+					markdownTitle: null,
+					source: '![[photo.png]]',
+					start: 0,
+					target: 'photo.png'
+				}
+			})
+		).toMatchObject({
+			copy: true,
+			copyAbsolutePath: false,
+			copyPath: true,
+			download: true,
+			layout: true,
+			openLink: true,
+			openLocal: false,
+			openTab: true,
+			openWindow: false,
+			replace: true,
+			share: true,
+			upload: true
+		});
+	});
+
+	it('hides layout on mobile when the image has no resolved ref', () => {
+		expect(
+			menuCapabilities({
+				identity: { kind: 'local', target: 'photo.png' },
+				platform: { isMobile: true },
+				ref: null
+			}).layout
+		).toBe(false);
+	});
+
+	it('hides share on mobile when the web share API is unavailable', () => {
+		expect(
+			menuCapabilities({
+				identity: { kind: 'local', target: 'photo.png' },
+				platform: { canShare: false, isMobile: true },
+				ref: {
+					decorations: [],
+					end: 14,
+					isRemote: false,
+					kind: 'wiki',
+					markdownTitle: null,
+					source: '![[photo.png]]',
+					start: 0,
+					target: 'photo.png'
+				}
+			}).share
+		).toBe(false);
 	});
 
 	it('disables reset size when the link has no size decoration', () => {
@@ -432,6 +579,38 @@ describe('visibleImageMenuGroups', () => {
 		expect(groups.some((group) => group.includes('localize'))).toBe(false);
 		expect(groups.find((group) => group.includes('layout'))).toEqual(['copyPath', 'layout']);
 		expect(groups.at(-1)).toEqual(['remove', 'deleteFile']);
+	});
+
+	it('puts upload first on mobile and includes native-parity actions', () => {
+		const capabilities = menuCapabilities({
+			identity: { kind: 'local', target: 'photo.png' },
+			platform: { canShare: true, isMobile: true },
+			ref: {
+				decorations: [],
+				end: 14,
+				isRemote: false,
+				kind: 'wiki',
+				markdownTitle: null,
+				source: '![[photo.png]]',
+				start: 0,
+				target: 'photo.png'
+			}
+		});
+
+		expect(visibleImageMenuGroups(capabilities, { isMobile: true })[0]).toEqual([
+			'upload',
+			'download'
+		]);
+		expect(visibleImageMenuGroups(capabilities, { isMobile: true })).toEqual([
+			['upload', 'download'],
+			['copy'],
+			['replace'],
+			['openLink', 'openInNewTab'],
+			['rename', 'move', 'star'],
+			['share'],
+			['copyPath', 'layout'],
+			['remove', 'deleteFile']
+		]);
 	});
 });
 

@@ -1,20 +1,23 @@
-import { Files } from 'files-sdk';
-
 import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
+import type { S3Connection } from '../s3-connection.ts';
 import type { StorageSecrets } from '../storage-secrets.ts';
+import type { StorageProviderAdapter } from './storage-provider-adapter.ts';
 
-export async function createR2Files(
-	profile: StorageProfile,
-	secrets: StorageSecrets
-): Promise<Files> {
-	const { r2 } = await import('files-sdk/r2');
-	return new Files({
-		adapter: r2({
+import { t } from '../../i18n/index.ts';
+
+export class CloudflareR2ProviderAdapter implements StorageProviderAdapter {
+	public createConnection(profile: StorageProfile, secrets: StorageSecrets): S3Connection {
+		if (!profile.accountId) {
+			throw new Error(t('errors.storageAccountIdRequired'));
+		}
+		return {
 			accessKeyId: secrets.accessKeyId,
-			accountId: profile.accountId ?? '',
 			bucket: profile.bucket,
+			endpoint: `https://${profile.accountId}.r2.cloudflarestorage.com`,
+			forcePathStyle: true,
 			publicBaseUrl: profile.publicBaseUrl,
+			region: 'auto',
 			secretAccessKey: secrets.secretAccessKey
-		})
-	});
+		};
+	}
 }

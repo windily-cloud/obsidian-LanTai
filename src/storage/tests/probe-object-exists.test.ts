@@ -51,4 +51,13 @@ describe('probeObjectExists', () => {
 			}, 'a.png')
 		).rejects.toThrow('Bucket not found');
 	});
+
+	it('treats Android requestUrl Stream closed as unknown so upload can continue', async () => {
+		const result = await probeObjectExists({
+			exists: vi.fn().mockRejectedValue(
+				new Error('Request failed, IOException Stream closed')
+			)
+		}, 'a.png');
+		expect(result).toBeNull();
+	});
 });

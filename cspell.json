@@ -15,6 +15,7 @@
 	"words": [
 		"AKID",
 		"Alnum",
+		"apos",
 		"backlink",
 		"Censorate",
 		"Churny",
@@ -38,7 +39,9 @@
 		"Pkmer",
 		"Popout",
 		"prefixer",
+		"PRESIGN",
 		"reimplementation",
+		"retarget",
 		"Seedable",
 		"tsbuildinfo",
 		"webp",

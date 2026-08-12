@@ -6,5 +6,5 @@
   "description": "Upload, localize, and download images with built-in object storage profiles.",
   "author": "windily-cloud",
   "authorUrl": "https://github.com/windily-cloud",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

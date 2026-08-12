@@ -84,18 +84,18 @@ export async function testStorageConnection(
 }
 
 async function checkHead(storage: ObjectStorageBrowser): Promise<ConnectionCheckResult> {
-	const probeKey = `${PROBE_KEY_PREFIX}head-probe-${String(Date.now())}`;
+	const probeKey = `${PROBE_KEY_PREFIX}exists-probe-${String(Date.now())}`;
 	try {
 		const result = await probeObjectExists(storage, probeKey);
 		if (result === null) {
 			return {
-				detail: 'HeadObject/exists denied (upload may still work)',
+				detail: 'Exists (list prefix) denied (upload may still work)',
 				id: 'head',
 				status: 'fail'
 			};
 		}
 		return {
-			detail: result ? 'Unexpected: probe key already exists' : 'HeadObject allowed',
+			detail: result ? 'Unexpected: probe key already exists' : 'Exists (list prefix) allowed',
 			id: 'head',
 			status: 'pass'
 		};

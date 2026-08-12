@@ -16,11 +16,13 @@ export type ImageMenuItemKey =
 	| 'openInNewTab'
 	| 'openInNewTabGroup'
 	| 'openInNewWindow'
+	| 'openLink'
 	| 'openWithDefaultApp'
 	| 'remove'
 	| 'rename'
 	| 'replace'
 	| 'resetSize'
+	| 'share'
 	| 'showInFileList'
 	| 'showInFolder'
 	| 'star'
@@ -28,18 +30,22 @@ export type ImageMenuItemKey =
 
 interface ImageMenuCapabilities {
 	readonly copy: boolean;
+	readonly copyAbsolutePath: boolean;
 	readonly copyPath: boolean;
 	readonly deleteFile: boolean;
 	readonly download: boolean;
 	readonly layout: boolean;
 	readonly localize: boolean;
 	readonly move: boolean;
+	readonly openLink: boolean;
 	readonly openLocal: boolean;
 	readonly openTab: boolean;
+	readonly openWindow: boolean;
 	readonly remove: boolean;
 	readonly rename: boolean;
 	readonly replace: boolean;
 	readonly resetSize: boolean;
+	readonly share: boolean;
 	readonly star: boolean;
 	readonly upload: boolean;
 }
@@ -55,6 +61,17 @@ const IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
 	['remove', 'deleteFile']
 ];
 
+const MOBILE_IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
+	['upload', 'localize', 'download'],
+	['copy'],
+	['replace', 'resetSize'],
+	['openLink', 'openInNewTab'],
+	['rename', 'move', 'star'],
+	['share'],
+	['copyPath', 'layout'],
+	['remove', 'deleteFile']
+];
+
 const IMAGE_MENU_ITEM_CAPABILITY: Record<ImageMenuItemKey, keyof ImageMenuCapabilities> = {
 	copy: 'copy',
 	copyPath: 'copyPath',
@@ -65,12 +82,14 @@ const IMAGE_MENU_ITEM_CAPABILITY: Record<ImageMenuItemKey, keyof ImageMenuCapabi
 	move: 'move',
 	openInNewTab: 'openTab',
 	openInNewTabGroup: 'openTab',
-	openInNewWindow: 'openTab',
+	openInNewWindow: 'openWindow',
+	openLink: 'openLink',
 	openWithDefaultApp: 'openLocal',
 	remove: 'remove',
 	rename: 'rename',
 	replace: 'replace',
 	resetSize: 'resetSize',
+	share: 'share',
 	showInFileList: 'openLocal',
 	showInFolder: 'openLocal',
 	star: 'star',
@@ -83,6 +102,11 @@ export interface ImageSourceRange {
 	readonly start: number;
 }
 
+export interface MenuPlatformInput {
+	readonly canShare?: boolean;
+	readonly isMobile: boolean;
+}
+
 export interface RenderedImageIdentity {
 	readonly kind: 'local' | 'remote';
 	readonly target: string;
@@ -90,6 +114,7 @@ export interface RenderedImageIdentity {
 
 interface MenuCapabilitiesInput {
 	readonly identity: RenderedImageIdentity;
+	readonly platform?: MenuPlatformInput;
 	readonly ref: ImageRef | null;
 }
 
@@ -99,13 +124,18 @@ interface PreciseImageOffsetInput {
 	readonly refs: readonly Pick<ImageRef, 'end' | 'start'>[];
 }
 
+interface VisibleImageMenuGroupsOptions {
+	readonly isMobile?: boolean;
+}
+
 export function findRenderedImageRef(
 	refs: readonly ImageRef[],
 	image: HTMLImageElement,
 	root: ParentNode = image.ownerDocument,
-	sourceRange?: ImageSourceRange
+	sourceRange?: ImageSourceRange,
+	treatLoopbackAsLocal = false
 ): ImageRef | null {
-	const identity = readRenderedImageIdentity(image);
+	const identity = readRenderedImageIdentity(image, treatLoopbackAsLocal);
 	if (!identity) {
 		return null;
 	}
@@ -135,7 +165,7 @@ export function findRenderedImageRef(
 		// Non-overlapping ranges fall through to occurrence matching instead of failing hard.
 	}
 
-	return resolveByRenderedOccurrence(candidates, image, root);
+	return resolveByRenderedOccurrence(candidates, image, root, treatLoopbackAsLocal);
 }
 
 /** Exposed for unit tests. */
@@ -150,7 +180,7 @@ export function identityMatchesRef(
 			&& (value === target || value.startsWith(target));
 	}
 
-	if (identity.kind !== 'local' || isRemoteUrl(identity.target)) {
+	if (identity.kind !== 'local') {
 		return false;
 	}
 
@@ -181,27 +211,34 @@ export function menuCapabilities(input: MenuCapabilitiesInput): ImageMenuCapabil
 	const isRemote = input.identity.kind === 'remote';
 	const isLocal = !isRemote;
 	const hasSize = hasRef && ref.decorations.some(isSizeDecoration);
+	const isMobile = input.platform?.isMobile === true;
+	const canShare = input.platform?.canShare === true;
 	return {
 		copy: true,
+		copyAbsolutePath: isLocal && !isMobile,
 		copyPath: isLocal,
 		deleteFile: isLocal,
 		download: true,
-		layout: true,
+		layout: isMobile ? hasRef : true,
 		localize: hasRef && ref.isRemote,
 		move: isLocal,
-		openLocal: isLocal,
+		openLink: isMobile,
+		openLocal: isLocal && !isMobile,
 		openTab: isLocal,
+		openWindow: isLocal && !isMobile,
 		remove: hasRef,
 		rename: isLocal,
 		replace: isLocal,
 		resetSize: hasSize,
+		share: isMobile && canShare,
 		star: isLocal,
 		upload: hasRef && !ref.isRemote
 	};
 }
 
 export function readRenderedImageIdentity(
-	image: HTMLImageElement
+	image: HTMLImageElement,
+	treatLoopbackAsLocal = false
 ): null | RenderedImageIdentity {
 	const dataPath = decodeSafely(image.getAttribute('data-path') ?? '');
 	if (dataPath) {
@@ -213,7 +250,7 @@ export function readRenderedImageIdentity(
 		if (!value) {
 			continue;
 		}
-		if (isRemoteUrl(value)) {
+		if (isRemoteUrl(value, treatLoopbackAsLocal)) {
 			return { kind: 'remote', target: value };
 		}
 		return { kind: 'local', target: value };
@@ -250,9 +287,11 @@ export function toImageTarget(
 }
 
 export function visibleImageMenuGroups(
-	capabilities: ImageMenuCapabilities
+	capabilities: ImageMenuCapabilities,
+	options?: VisibleImageMenuGroupsOptions
 ): ImageMenuItemKey[][] {
-	return IMAGE_MENU_GROUPS
+	const groups = options?.isMobile === true ? MOBILE_IMAGE_MENU_GROUPS : IMAGE_MENU_GROUPS;
+	return groups
 		.map((group) => group.filter((item) => capabilities[IMAGE_MENU_ITEM_CAPABILITY[item]]))
 		.filter((group) => group.length > 0);
 }
@@ -278,12 +317,31 @@ function identityTargetForActions(identity: RenderedImageIdentity): string {
 	return normalizeLocalPath(identity.target);
 }
 
+function isLoopbackOrDeviceLocalUrl(value: string): boolean {
+	if (/^(?:app|blob|capacitor|file):/i.test(value)) {
+		return true;
+	}
+	try {
+		const url = new URL(value);
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+			return false;
+		}
+		const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+		return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+	} catch {
+		return false;
+	}
+}
+
 function isMarkdownViewRoot(element: Element): boolean {
 	return element.classList.contains('markdown-source-view')
 		|| element.classList.contains('cm-editor');
 }
 
-function isRemoteUrl(value: string): boolean {
+function isRemoteUrl(value: string, treatLoopbackAsLocal = false): boolean {
+	if (treatLoopbackAsLocal && isLoopbackOrDeviceLocalUrl(value)) {
+		return false;
+	}
 	return /^https?:\/\//i.test(value);
 }
 
@@ -293,10 +351,11 @@ function isSizeDecoration(value: string): boolean {
 
 function matchingRenderedImages(
 	scope: ParentNode,
-	sample: ImageRef
+	sample: ImageRef,
+	treatLoopbackAsLocal = false
 ): HTMLImageElement[] {
 	return [...scope.querySelectorAll<HTMLImageElement>('img')].filter((candidate) => {
-		const candidateIdentity = readRenderedImageIdentity(candidate);
+		const candidateIdentity = readRenderedImageIdentity(candidate, treatLoopbackAsLocal);
 		return candidateIdentity !== null && identityMatchesRef(candidateIdentity, sample);
 	});
 }
@@ -355,7 +414,8 @@ function occurrenceScopes(root: ParentNode, image: HTMLImageElement): ParentNode
 function resolveByRenderedOccurrence(
 	candidates: readonly ImageRef[],
 	image: HTMLImageElement,
-	root: ParentNode
+	root: ParentNode,
+	treatLoopbackAsLocal = false
 ): ImageRef | null {
 	const firstCandidate = candidates[0];
 	if (!firstCandidate) {
@@ -363,7 +423,7 @@ function resolveByRenderedOccurrence(
 	}
 
 	for (const scope of occurrenceScopes(root, image)) {
-		const renderedMatches = matchingRenderedImages(scope, firstCandidate);
+		const renderedMatches = matchingRenderedImages(scope, firstCandidate, treatLoopbackAsLocal);
 		if (renderedMatches.length !== candidates.length) {
 			continue;
 		}

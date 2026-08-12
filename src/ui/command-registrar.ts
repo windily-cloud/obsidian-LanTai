@@ -2,11 +2,13 @@ import type {
 	App,
 	Editor,
 	MarkdownFileInfo,
+	Menu,
 	Plugin,
 	TFile
 } from 'obsidian';
 
 import { Notice } from 'obsidian';
+import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type { ActionResult } from '../actions/action-result.ts';
 import type {
@@ -58,6 +60,50 @@ export class CommandRegistrar {
 		});
 		this.registerConvertCommand('wiki', t('commands.convertToWiki'));
 		this.registerConvertCommand('markdown', t('commands.convertToMarkdown'));
+		this.plugin.registerEvent(
+			this.app.workspace.on('editor-menu', (menu, editor, info) => {
+				this.addEditorImageMenuItems(menu, editor, info);
+			})
+		);
+	}
+
+	private addEditorImageMenuItems(
+		menu: Menu,
+		editor: Editor,
+		info: MarkdownFileInfo
+	): void {
+		if (!info.file) {
+			return;
+		}
+		const line = editor.getLine(editor.getCursor().line);
+		const content = editor.getValue();
+		const refs = this.facade.parseNote({
+			note: {
+				applyEdit: async (): Promise<boolean> => {
+					await noopAsync();
+					return false;
+				},
+				getContent: (): string => content,
+				setContent: async (): Promise<void> => {
+					await noopAsync();
+				}
+			},
+			noteFilePath: info.file.path
+		});
+		const ref = findRefAtCursor(refs, line, editor.getCursor().ch);
+		if (!ref) {
+			return;
+		}
+		menu.addSeparator();
+		for (const action of editorImageMenuActions(ref.isRemote)) {
+			menu.addItem((item) => {
+				item.setTitle(titleForAction(action)).onClick(() => {
+					this.runCurrent(action, editor, info).catch((error: unknown) => {
+						this.reportError(error);
+					});
+				});
+			});
+		}
 	}
 
 	private async createContext(
@@ -208,6 +254,10 @@ export class CommandRegistrar {
 	}
 }
 
+export function editorImageMenuActions(isRemote: boolean): readonly SingleAction[] {
+	return isRemote ? ['localize', 'download'] : ['upload', 'download'];
+}
+
 function failureMessage(reason: 'conflict' | 'error' | 'missing'): string {
 	switch (reason) {
 		case 'conflict':
@@ -239,4 +289,19 @@ function findRefAtCursor(
 	}
 	const onLine = refs.filter((ref) => line.includes(ref.source));
 	return onLine.length === 1 ? (onLine[0] ?? null) : null;
+}
+
+function titleForAction(action: SingleAction): string {
+	switch (action) {
+		case 'download':
+			return t('commands.downloadCurrent');
+		case 'localize':
+			return t('commands.localizeCurrent');
+		case 'upload':
+			return t('commands.uploadCurrent');
+		default: {
+			const _exhaustive: never = action;
+			return _exhaustive;
+		}
+	}
 }

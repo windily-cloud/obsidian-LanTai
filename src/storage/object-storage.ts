@@ -21,6 +21,7 @@ export interface ObjectStorageFile {
 export interface ObjectStorageListOptions {
 	readonly cursor?: string;
 	readonly limit?: number;
+	readonly prefix?: string;
 }
 
 export interface ObjectStorageListResult {

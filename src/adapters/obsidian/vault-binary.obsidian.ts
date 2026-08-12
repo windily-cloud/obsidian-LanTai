@@ -33,7 +33,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 		if (!file) {
 			throw new Error(t('errors.vaultFileNotFound', { path }));
 		}
-		await this.app.vault.modifyBinary(file, Uint8Array.from(bytes).buffer);
+		await this.app.vault.modifyBinary(file, toStandaloneArrayBuffer(bytes));
 	}
 
 	public async readBinary(path: string): Promise<Uint8Array> {
@@ -71,7 +71,7 @@ export class ObsidianVaultBinary implements VaultBinary {
 		await ensureParentFolders(this.app, normalizedPath);
 		await this.app.vault.createBinary(
 			normalizedPath,
-			Uint8Array.from(bytes).buffer
+			toStandaloneArrayBuffer(bytes)
 		);
 	}
 }
@@ -112,4 +112,8 @@ function stripResourceProtocol(target: string): string {
 		return appProtocol.groups['resourcePath'];
 	}
 	return target;
+}
+
+function toStandaloneArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+	return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength).slice().buffer;
 }

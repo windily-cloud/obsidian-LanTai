@@ -1,4 +1,12 @@
+import {
+	normalizePath,
+	Notice,
+	Platform,
+	requestUrl
+} from 'obsidian';
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
+
+import type { PickedImageFile } from './adapters/obsidian/pick-image-file-bytes.obsidian.ts';
 
 import { DownloadAction } from './actions/download-action.ts';
 import { ImageActionFacade } from './actions/image-action-facade.ts';
@@ -9,23 +17,30 @@ import { SystemImageClipboard } from './adapters/desktop/system-image-clipboard.
 import { ObsidianBrowserDownload } from './adapters/obsidian/browser-download.obsidian.ts';
 import { ObsidianDesktopFileActions } from './adapters/obsidian/desktop-file-actions.obsidian.ts';
 import { ObsidianHttpFetch } from './adapters/obsidian/http-fetch.obsidian.ts';
+import { pickImageFileBytes } from './adapters/obsidian/pick-image-file-bytes.obsidian.ts';
 import { SaveAttachmentPatchComponent } from './adapters/obsidian/save-attachment.obsidian.ts';
 import { ObsidianSecretStore } from './adapters/obsidian/secret-store.obsidian.ts';
 import { ObsidianUploadHistoryStore } from './adapters/obsidian/upload-history.obsidian.ts';
+import { VaultAttachmentDownload } from './adapters/obsidian/vault-attachment-download.obsidian.ts';
 import { ObsidianVaultBinary } from './adapters/obsidian/vault-binary.obsidian.ts';
 import { ObsidianVaultImageBrowser } from './adapters/obsidian/vault-image-browser.obsidian.ts';
+import { WebImageClipboard } from './adapters/web/web-image-clipboard.ts';
+import { WebImageShare } from './adapters/web/web-image-share.ts';
+import { t } from './i18n/index.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
 import { ImageLinkParser } from './link/image-link-parser.ts';
 import { ImageLinkService } from './link/image-link-service.ts';
 import { RemoteImageReferenceFinder } from './link/remote-image-reference-finder.ts';
 import { AttachmentPathResolver } from './path/attachment-path-resolver.ts';
+import { buildNameTemplateContext } from './path/name-template-context.ts';
 import { NameTemplateEngine } from './path/name-template-engine.ts';
 import {
 	PluginSettings,
 	PluginSettingsTab
 } from './settings/plugin-settings.ts';
 import { createGallerySource } from './storage/gallery-source-factory.ts';
-import { createObjectStorage } from './storage/object-storage-factory.ts';
+import { createObjectStorageFactory } from './storage/object-storage-factory.ts';
+import { RequestUrlObjectStorageTransport } from './storage/request-url-object-storage-transport.ts';
 import { CommandRegistrar } from './ui/command-registrar.ts';
 import { pickAndUploadGalleryImages } from './ui/gallery-uploader.ts';
 import { ImageContextMenuController } from './ui/image-context-menu-controller.ts';
@@ -53,12 +68,48 @@ export class Plugin extends PluginBase {
 		const vault = new ObsidianVaultBinary({ app: this.app });
 		const http = new ObsidianHttpFetch();
 		const desktop = new ObsidianDesktopFileActions(this.app);
+		const webShare = new WebImageShare();
+		const imageClipboard = Platform.isMobile
+			? new WebImageClipboard()
+			: new SystemImageClipboard();
 		const secretStore = new ObsidianSecretStore({ app: this.app });
 		const uploadHistory = new ObsidianUploadHistoryStore({ app: this.app });
 		const vaultImages = new ObsidianVaultImageBrowser({ app: this.app });
+		const createObjectStorage = createObjectStorageFactory(
+			new RequestUrlObjectStorageTransport({ requestUrl })
+		);
+		const download = Platform.isMobile
+			? new VaultAttachmentDownload({
+				exists: (path): Promise<boolean> => vault.exists(path),
+				notify: (path): void => {
+					new Notice(t('notices.downloadSavedToVault', { path }));
+				},
+				resolveDestination: (fileName): string => {
+					const active = this.app.workspace.getActiveFile();
+					const noteFilePath = active?.path ?? 'note.md';
+					const dot = fileName.lastIndexOf('.');
+					const originalName = dot === -1 ? fileName : fileName.slice(0, dot);
+					const ext = dot === -1 ? '' : fileName.slice(dot + 1);
+					const useNoteBase = this.settings.attachmentBase === 'note' && active !== null;
+					return pathResolver.resolveLocalPath({
+						base: useNoteBase ? 'note' : 'vault',
+						ctx: buildNameTemplateContext({
+							ext,
+							noteFilePath,
+							originalName
+						}),
+						noteFolderPath: useNoteBase
+							? (active.parent?.path ?? '')
+							: '',
+						template: this.settings.localPathTemplate
+					});
+				},
+				writeBinary: (path, bytes): Promise<void> => vault.writeBinary(path, bytes)
+			})
+			: new ObsidianBrowserDownload();
 		const facade = new ImageActionFacade({
 			createStorage: createObjectStorage,
-			download: new ObsidianBrowserDownload(),
+			download,
 			downloadAction: new DownloadAction(),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
 			hasLocalReference: async (localPath, context): Promise<boolean> => {
@@ -113,25 +164,34 @@ export class Plugin extends PluginBase {
 			app: this.app,
 			facade,
 			fileActions: new ImageFileActions({
+				fileExists: (path: string): boolean => this.app.vault.getAbstractFileByPath(normalizePath(path)) !== null,
 				getObsidianUrl: (path: string): string => desktop.getObsidianUrl(path),
 				http,
-				imageClipboard: new SystemImageClipboard(),
+				imageClipboard,
 				modifyBinary: (path: string, bytes: Uint8Array): Promise<void> => vault.modifyBinary(path, bytes),
 				move: (path: string): Promise<void> => desktop.move(path),
 				openDefault: (path: string): Promise<void> => desktop.openDefault(path),
+				openInCurrentTab: (path: string): Promise<void> => desktop.openInCurrentTab(path),
 				openInNewTab: (path: string): Promise<void> => desktop.openInNewTab(path),
 				openInNewTabGroup: (path: string): Promise<void> => desktop.openInNewTabGroup(path),
 				openInNewWindow: (path: string): Promise<void> => desktop.openInNewWindow(path),
-				pickReplacementBytes: (): Promise<null | Uint8Array> => desktop.pickReplacementBytes(),
+				openUrl: (url: string): Promise<void> => desktop.openUrl(url),
+				pickReplacementBytes: (): Promise<null | PickedImageFile> =>
+					Platform.isMobile
+						? pickImageFileBytes()
+						: desktop.pickReplacementBytes(),
 				promptDelete: (path: string): Promise<boolean> => desktop.promptDelete(path),
 				readBinary: (path: string): Promise<Uint8Array> => vault.readBinary(path),
 				rename: (path: string): Promise<void> => desktop.rename(path),
 				resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
+				shareFile: (input): Promise<void> => webShare.shareFile(input),
+				shareUrl: (url: string): Promise<void> => webShare.shareUrl(url),
 				showInFileList: (path: string): Promise<void> => desktop.showInFileList(path),
 				showInFolder: (path: string): Promise<void> => desktop.showInFolder(path),
 				star: (path: string): Promise<void> => desktop.star(path),
 				toSystemPath: (path: string): string => desktop.toSystemPath(path),
 				trash: (path: string): Promise<void> => vault.trash(path),
+				writeBinary: (path: string, bytes: Uint8Array): Promise<void> => vault.writeBinary(path, bytes),
 				writeText: (text: string): Promise<void> => desktop.writeText(text)
 			}),
 			linkService,

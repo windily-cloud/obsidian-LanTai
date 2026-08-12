@@ -1,22 +1,19 @@
-import { Files } from 'files-sdk';
-
 import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
+import type { S3Connection } from '../s3-connection.ts';
 import type { StorageSecrets } from '../storage-secrets.ts';
+import type { StorageProviderAdapter } from './storage-provider-adapter.ts';
 
-export async function createS3Files(
-	profile: StorageProfile,
-	secrets: StorageSecrets
-): Promise<Files> {
-	const { s3 } = await import('files-sdk/s3');
-	return new Files({
-		adapter: s3({
+export class AwsS3ProviderAdapter implements StorageProviderAdapter {
+	public createConnection(profile: StorageProfile, secrets: StorageSecrets): S3Connection {
+		const region = profile.region ?? 'us-east-1';
+		return {
+			accessKeyId: secrets.accessKeyId,
 			bucket: profile.bucket,
-			credentials: {
-				accessKeyId: secrets.accessKeyId,
-				secretAccessKey: secrets.secretAccessKey
-			},
+			endpoint: `https://s3.${region}.amazonaws.com`,
+			forcePathStyle: false,
 			publicBaseUrl: profile.publicBaseUrl,
-			region: profile.region ?? 'us-east-1'
-		})
-	});
+			region,
+			secretAccessKey: secrets.secretAccessKey
+		};
+	}
 }

@@ -64,6 +64,11 @@ interface FileManagerWithRenamePrompt {
 	promptForFileRename?(file: TFile): Promise<void>;
 }
 
+interface PickedReplacementBytes {
+	readonly bytes: Uint8Array;
+	readonly name: string;
+}
+
 class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 	private resolvePromise: ((value: null | TFolder) => void) | null = null;
 
@@ -127,6 +132,10 @@ export class ObsidianDesktopFileActions {
 		return noopAsync();
 	}
 
+	public async openInCurrentTab(vaultPath: string): Promise<void> {
+		await this.openInLeaf(vaultPath, this.app.workspace.getLeaf(false));
+	}
+
 	public async openInNewTab(vaultPath: string): Promise<void> {
 		await this.openInLeaf(vaultPath, this.app.workspace.getLeaf(true));
 	}
@@ -139,7 +148,12 @@ export class ObsidianDesktopFileActions {
 		await this.openInLeaf(vaultPath, this.app.workspace.openPopoutLeaf());
 	}
 
-	public async pickReplacementBytes(): Promise<null | Uint8Array> {
+	public openUrl(url: string): Promise<void> {
+		window.open(url);
+		return noopAsync();
+	}
+
+	public async pickReplacementBytes(): Promise<null | PickedReplacementBytes> {
 		const dialog = getElectronDialog();
 		const result = await dialog.showOpenDialog({
 			filters: [{ extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], name: t('errors.imagesFilter') }],
@@ -148,8 +162,13 @@ export class ObsidianDesktopFileActions {
 		if (result.canceled || result.filePaths.length === 0 || !result.filePaths[0]) {
 			return null;
 		}
-		const buffer = await FileSystemAdapter.readLocalFile(result.filePaths[0]);
-		return new Uint8Array(buffer);
+		const chosen = result.filePaths[0];
+		const buffer = await FileSystemAdapter.readLocalFile(chosen);
+		const name = chosen.split(/[/\\]/u).pop() ?? 'image.png';
+		return {
+			bytes: new Uint8Array(buffer),
+			name
+		};
 	}
 
 	public async promptDelete(vaultPath: string): Promise<boolean> {

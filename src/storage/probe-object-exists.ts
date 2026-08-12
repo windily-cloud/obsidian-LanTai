@@ -10,6 +10,8 @@ const PERMISSION_CODES = new Set([
 ]);
 
 const PERMISSION_MESSAGE_RE = /access\s*denied|unknown\s*error/i;
+/** Obsidian Android requestUrl / OkHttp native abort — treat as soft-unknown. */
+const STREAM_CLOSED_RE = /stream\s*closed/i;
 
 export function isPermissionProbeError(error: unknown): boolean {
 	let current: unknown = error;
@@ -21,6 +23,9 @@ export function isPermissionProbeError(error: unknown): boolean {
 			return true;
 		}
 		if (PERMISSION_MESSAGE_RE.test(current.message)) {
+			return true;
+		}
+		if (STREAM_CLOSED_RE.test(current.message)) {
 			return true;
 		}
 		current = current.cause;

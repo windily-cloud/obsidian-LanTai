@@ -106,13 +106,44 @@ describe('ImageFileActions', () => {
 
 	it('replaces local image bytes from a picked file', async () => {
 		const modifyBinary = vi.fn().mockResolvedValue(undefined);
-		const pickReplacementBytes = vi.fn().mockResolvedValue(new Uint8Array([4, 5]));
+		const pickReplacementBytes = vi.fn().mockResolvedValue({
+			bytes: new Uint8Array([4, 5]),
+			name: 'image.png'
+		});
 		const actions = createActions({ modifyBinary, pickReplacementBytes });
 
 		const replaced = await actions.replaceContent(localRef, 'notes/note.md');
 
-		expect(replaced).toBe(true);
+		expect(replaced).toEqual({
+			newPath: 'assets/image.png',
+			originalPath: 'assets/image.png'
+		});
 		expect(modifyBinary).toHaveBeenCalledWith('assets/image.png', new Uint8Array([4, 5]));
+	});
+
+	it('writes a unique new file when retargeting so the note link can change', async () => {
+		const writeBinary = vi.fn().mockResolvedValue(undefined);
+		const modifyBinary = vi.fn();
+		const fileExists = vi.fn((path: string) => path === 'assets/image.png');
+		const pickReplacementBytes = vi.fn().mockResolvedValue({
+			bytes: new Uint8Array([4, 5, 6]),
+			name: 'photo.jpg'
+		});
+		const actions = createActions({
+			fileExists,
+			modifyBinary,
+			pickReplacementBytes,
+			writeBinary
+		});
+
+		const replaced = await actions.replaceContent(localRef, 'notes/note.md', { retarget: true });
+
+		expect(replaced).toEqual({
+			newPath: 'assets/photo.jpg',
+			originalPath: 'assets/image.png'
+		});
+		expect(writeBinary).toHaveBeenCalledWith('assets/photo.jpg', new Uint8Array([4, 5, 6]));
+		expect(modifyBinary).not.toHaveBeenCalled();
 	});
 
 	it('returns false when replacement picking is cancelled', async () => {
@@ -122,7 +153,7 @@ describe('ImageFileActions', () => {
 			pickReplacementBytes: vi.fn().mockResolvedValue(null)
 		});
 
-		expect(await actions.replaceContent(localRef, 'notes/note.md')).toBe(false);
+		expect(await actions.replaceContent(localRef, 'notes/note.md')).toBeNull();
 		expect(modifyBinary).not.toHaveBeenCalled();
 	});
 
@@ -145,10 +176,39 @@ describe('ImageFileActions', () => {
 		expect(promptDelete).toHaveBeenCalledWith('assets/image.png');
 		expect(trash).toHaveBeenCalledWith('assets/image.png');
 	});
+
+	it('opens a local file in the current tab and a remote URL in the browser', async () => {
+		const openInCurrentTab = vi.fn().mockResolvedValue(undefined);
+		const openUrl = vi.fn().mockResolvedValue(undefined);
+		const actions = createActions({ openInCurrentTab, openUrl });
+
+		await actions.openLink(localRef, 'notes/note.md');
+		await actions.openLink(remoteRef, 'notes/note.md');
+
+		expect(openInCurrentTab).toHaveBeenCalledWith('assets/image.png');
+		expect(openUrl).toHaveBeenCalledWith('https://cdn.example.com/image%20one.png');
+	});
+
+	it('shares a local file and a remote URL', async () => {
+		const shareFile = vi.fn().mockResolvedValue(undefined);
+		const shareUrl = vi.fn().mockResolvedValue(undefined);
+		const readBinary = vi.fn().mockResolvedValue(new Uint8Array([9, 8, 7]));
+		const actions = createActions({ readBinary, shareFile, shareUrl });
+
+		await actions.share(localRef, 'notes/note.md');
+		await actions.share(remoteRef, 'notes/note.md');
+
+		expect(shareFile).toHaveBeenCalledWith({
+			bytes: new Uint8Array([9, 8, 7]),
+			name: 'image.png'
+		});
+		expect(shareUrl).toHaveBeenCalledWith('https://cdn.example.com/image%20one.png');
+	});
 });
 
 function createActions(overrides: Record<string, unknown> = {}): ImageFileActions {
 	return new ImageFileActions({
+		fileExists: vi.fn().mockReturnValue(false),
 		getObsidianUrl: vi.fn().mockReturnValue(
 			`obsidian://open?vault=Demo&file=${encodeURIComponent('assets/image.png')}`
 		),
@@ -157,19 +217,24 @@ function createActions(overrides: Record<string, unknown> = {}): ImageFileAction
 		modifyBinary: vi.fn().mockResolvedValue(undefined),
 		move: vi.fn().mockResolvedValue(undefined),
 		openDefault: vi.fn().mockResolvedValue(undefined),
+		openInCurrentTab: vi.fn().mockResolvedValue(undefined),
 		openInNewTab: vi.fn().mockResolvedValue(undefined),
 		openInNewTabGroup: vi.fn().mockResolvedValue(undefined),
 		openInNewWindow: vi.fn().mockResolvedValue(undefined),
+		openUrl: vi.fn().mockResolvedValue(undefined),
 		pickReplacementBytes: vi.fn().mockResolvedValue(null),
 		promptDelete: vi.fn().mockResolvedValue(true),
 		readBinary: vi.fn().mockResolvedValue(new Uint8Array([9, 8, 7])),
 		rename: vi.fn().mockResolvedValue(undefined),
 		resolveVaultPath: vi.fn().mockReturnValue('assets/image.png'),
+		shareFile: vi.fn().mockResolvedValue(undefined),
+		shareUrl: vi.fn().mockResolvedValue(undefined),
 		showInFileList: vi.fn().mockResolvedValue(undefined),
 		showInFolder: vi.fn().mockResolvedValue(undefined),
 		star: vi.fn().mockResolvedValue(undefined),
 		toSystemPath: vi.fn().mockReturnValue('/vault/assets/image.png'),
 		trash: vi.fn().mockResolvedValue(undefined),
+		writeBinary: vi.fn().mockResolvedValue(undefined),
 		writeText: vi.fn().mockResolvedValue(undefined),
 		...overrides
 	});
