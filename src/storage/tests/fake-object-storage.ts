@@ -1,6 +1,7 @@
 import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type {
+	ObjectStat,
 	ObjectStorage,
 	ObjectStorageBrowser,
 	ObjectStorageListResult
@@ -10,6 +11,7 @@ interface FakeObjectStorageConstructorParams {
 	readonly existing?: string[];
 	readonly existsError?: Error;
 	readonly listError?: Error;
+	readonly objectBytes?: Readonly<Record<string, Uint8Array>>;
 	readonly publicBaseUrl: string;
 }
 
@@ -22,6 +24,7 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	private readonly existing: Set<string>;
 	private readonly existsError: Error | undefined;
 	private readonly listError: Error | undefined;
+	private readonly objectBytes: Map<string, Uint8Array>;
 	private readonly publicBaseUrl: string;
 
 	public constructor(params: FakeObjectStorageConstructorParams) {
@@ -29,6 +32,10 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		this.existing = new Set(params.existing ?? []);
 		this.existsError = params.existsError;
 		this.listError = params.listError;
+		this.objectBytes = new Map(Object.entries(params.objectBytes ?? {}));
+		for (const key of this.objectBytes.keys()) {
+			this.existing.add(key);
+		}
 	}
 
 	public buildPublicUrl(objectKey: string): Promise<string> {
@@ -51,7 +58,19 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	public delete(objectKey: string): Promise<void> {
 		this.deletedKeys.push(objectKey);
 		this.existing.delete(objectKey);
+		this.objectBytes.delete(objectKey);
 		return noopAsync();
+	}
+
+	public download(objectKey: string): Promise<Uint8Array> {
+		if (this.existsError) {
+			return Promise.reject(this.existsError);
+		}
+		const bytes = this.objectBytes.get(objectKey);
+		if (bytes === undefined) {
+			return Promise.reject(new Error(`FakeObjectStorage: missing object ${objectKey}`));
+		}
+		return Promise.resolve(bytes);
 	}
 
 	public exists(objectKey: string): Promise<boolean> {
@@ -72,9 +91,21 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		// No-op search for tests
 	}
 
-	public upload(objectKey: string, _bytes: Uint8Array): Promise<void> {
+	public stat(objectKey: string): Promise<null | ObjectStat> {
+		if (this.existsError) {
+			return Promise.reject(this.existsError);
+		}
+		if (!this.existing.has(objectKey)) {
+			return Promise.resolve(null);
+		}
+		const bytes = this.objectBytes.get(objectKey);
+		return Promise.resolve({ size: bytes?.length ?? 0 });
+	}
+
+	public upload(objectKey: string, bytes: Uint8Array): Promise<void> {
 		this.uploadedKeys.push(objectKey);
 		this.existing.add(objectKey);
+		this.objectBytes.set(objectKey, bytes);
 		return noopAsync();
 	}
 }

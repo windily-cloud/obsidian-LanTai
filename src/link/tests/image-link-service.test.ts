@@ -25,6 +25,33 @@ describe('ImageLinkService', () => {
 		expect(next).toBe('before ![](https://cdn.example.com/new.png) after');
 	});
 
+	it('preserves wiki size and layout when formatting a remote target', () => {
+		const ref = service.parse('![[a.png|100|center]]')[0];
+		if (!ref) {
+			throw new Error('Expected image ref');
+		}
+		expect(service.formatTargetFromRef(ref, 'https://cdn.example.com/a.png', 'wiki'))
+			.toBe('![100|center](https://cdn.example.com/a.png)');
+	});
+
+	it('preserves markdown decorations and title when formatting a remote target', () => {
+		const ref = service.parse('![cap|250|left](a.png "shot")')[0];
+		if (!ref) {
+			throw new Error('Expected image ref');
+		}
+		expect(service.formatTargetFromRef(ref, 'https://cdn.example.com/a.png', 'markdown'))
+			.toBe('![cap|250|left](https://cdn.example.com/a.png "shot")');
+	});
+
+	it('preserves decorations when formatting a local wiki target', () => {
+		const ref = service.parse('![cap|100|center](https://cdn.example.com/a.png)')[0];
+		if (!ref) {
+			throw new Error('Expected image ref');
+		}
+		expect(service.formatTargetFromRef(ref, 'folder/a.png', 'wiki'))
+			.toBe('![[folder/a.png|cap|100|center]]');
+	});
+
 	it('replaces only the selected repeated occurrence', () => {
 		const source = '![[same.png]] then ![[same.png]]';
 		const ref = service.parse(source)[1];

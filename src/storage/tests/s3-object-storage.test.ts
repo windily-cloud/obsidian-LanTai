@@ -144,6 +144,65 @@ describe('S3ObjectStorage.exists', () => {
 	});
 });
 
+describe('S3ObjectStorage.stat', () => {
+	it('returns size for an exact key match from list', async () => {
+		const transport = new FakeTransport();
+		transport.push({
+			body: [
+				'<ListBucketResult>',
+				'<Contents><Key>images/cat.png</Key><Size>42</Size></Contents>',
+				'<IsTruncated>false</IsTruncated>',
+				'</ListBucketResult>'
+			].join(''),
+			status: 200
+		});
+		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
+
+		await expect(storage.stat('images/cat.png')).resolves.toEqual({ size: 42 });
+		const request = transport.singleRequest();
+		expect(request.method).toBe('GET');
+		expect(request.url).toContain('list-type=2');
+		expect(request.url).toContain(`prefix=${encodeURIComponent('images/cat.png')}`);
+	});
+
+	it('returns null when the key is absent', async () => {
+		const transport = new FakeTransport();
+		transport.push({
+			body: '<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>',
+			status: 200
+		});
+		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
+
+		await expect(storage.stat('images/cat.png')).resolves.toBeNull();
+	});
+});
+
+describe('S3ObjectStorage.download', () => {
+	it('sends a signed GET and returns body bytes', async () => {
+		const transport = new FakeTransport();
+		transport.push({ body: 'abc', status: 200 });
+		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
+
+		await expect(storage.download('images/cat.png'))
+			.resolves.toEqual(new TextEncoder().encode('abc'));
+		const request = transport.singleRequest();
+		expect(request.method).toBe('GET');
+		expect(request.url).toBe('https://minio.example.com/pics/images/cat.png');
+	});
+
+	it('maps a rejected download to a storage error', async () => {
+		const transport = new FakeTransport();
+		transport.push({
+			body: '<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>',
+			status: 403
+		});
+		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
+
+		await expect(storage.download('images/cat.png'))
+			.rejects.toMatchObject({ code: 'Unauthorized', message: 'Access Denied' });
+	});
+});
+
 describe('S3ObjectStorage.delete', () => {
 	it('sends a signed DELETE', async () => {
 		const transport = new FakeTransport();

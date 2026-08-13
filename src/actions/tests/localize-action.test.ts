@@ -69,6 +69,27 @@ describe('LocalizeAction', () => {
 		expect(http.calls).toHaveLength(0);
 	});
 
+	it('preserves size and layout when rewriting an existing local path', async () => {
+		const source = '![cap|100|center](https://cdn.example.com/a.png)';
+		const note = new FakeNoteContent(source);
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([9]) });
+		const result = await createAction().execute({
+			attachmentBase: 'note',
+			ctx: ctx(),
+			http: new FakeHttpFetch(),
+			linkStyle: 'wiki',
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			localPathTemplate: '${originalName}.${ext}',
+			note,
+			noteFolderPath: 'Journal',
+			ref: ref(source),
+			remoteUrl: 'https://cdn.example.com/a.png',
+			vault
+		});
+		expect(result.ok).toBe(true);
+		expect(note.getContent()).toBe('![[Journal/photo.png|cap|100|center]]');
+	});
+
 	it('downloads and writes when local target path is missing', async () => {
 		const note = new FakeNoteContent('![](https://cdn.example.com/a.png)');
 		const vault = new FakeVaultBinary();

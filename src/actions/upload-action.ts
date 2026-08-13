@@ -12,7 +12,7 @@ import type { ActionResult } from './action-result.ts';
 import { t } from '../i18n/index.ts';
 import { probeObjectExists } from '../storage/probe-object-exists.ts';
 
-interface UploadActionInput {
+export interface UploadActionInput {
 	ctx: NameTemplateContext;
 	deleteSourceAfterUpload: boolean;
 	hasRemainingReference(): Promise<boolean>;
@@ -26,7 +26,10 @@ interface UploadActionInput {
 	ref: ImageRef;
 	storage: ObjectStorage;
 	vault: VaultBinary;
+	writeMode: UploadWriteMode;
 }
+
+export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
 
 export class UploadAction {
 	public constructor(
@@ -43,18 +46,26 @@ export class UploadAction {
 			template: input.objectKeyTemplate
 		});
 
-		if ((await probeObjectExists(input.storage, objectKey)) === true) {
-			return { ok: false, reason: 'conflict' };
+		if (input.writeMode === 'upload') {
+			if ((await probeObjectExists(input.storage, objectKey)) === true) {
+				return { ok: false, reason: 'conflict' };
+			}
 		}
 
-		const bytes = await input.vault.readBinary(input.localPath);
-		await input.storage.upload(objectKey, bytes);
+		if (input.writeMode !== 'linkOnly') {
+			const bytes = await input.vault.readBinary(input.localPath);
+			await input.storage.upload(objectKey, bytes);
+		}
 
 		const publicUrl = await input.storage.buildPublicUrl(objectKey);
 		const applied = await input.note.applyEdit({
 			end: input.ref.end,
 			expected: input.ref.source,
-			replacement: this.linkService.formatTarget(publicUrl, input.linkStyle),
+			replacement: this.linkService.formatTargetFromRef(
+				input.ref,
+				publicUrl,
+				input.linkStyle
+			),
 			start: input.ref.start
 		});
 		if (!applied) {
@@ -69,15 +80,17 @@ export class UploadAction {
 			await input.vault.trash(input.localPath);
 		}
 
-		try {
-			await input.recordUpload({
-				key: objectKey,
-				profileId: input.profileId,
-				timestamp: Date.now(),
-				url: publicUrl
-			});
-		} catch {
-			// History persistence must not affect the upload result.
+		if (input.writeMode !== 'linkOnly') {
+			try {
+				await input.recordUpload({
+					key: objectKey,
+					profileId: input.profileId,
+					timestamp: Date.now(),
+					url: publicUrl
+				});
+			} catch {
+				// History persistence must not affect the upload result.
+			}
 		}
 
 		return { ok: true };

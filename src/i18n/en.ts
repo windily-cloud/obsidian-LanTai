@@ -88,6 +88,7 @@ export const en = {
 		uploadFailed: 'Upload failed: {name}',
 		uploading: 'Uploading {name}...',
 		uploadPartial: 'Uploaded {uploaded}, failed {failed}.',
+		uploadSkipped: 'Skipped {count} image(s) (already present or overwrite cancelled).',
 		urlCopiedNotice: 'URL copied',
 		viewTitle: 'Gallery'
 	},
@@ -143,6 +144,13 @@ export const en = {
 		localizeCompleted: 'Localize completed.',
 		openMarkdownNote: 'Open a Markdown note first.',
 		placeCursorOnImage: 'Place the cursor on an image link first.'
+	},
+	overwriteConfirm: {
+		cancel: 'Cancel',
+		descriptionMany: '{count} images differ from the remote objects. Overwrite all of them?',
+		descriptionOne: 'This image differs from the remote object. Overwrite it?',
+		overwrite: 'Overwrite',
+		title: 'Overwrite remote image?'
 	},
 	settings: {
 		active: 'Active',

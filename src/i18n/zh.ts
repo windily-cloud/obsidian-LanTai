@@ -96,6 +96,7 @@ export const zh = {
 		uploadFailed: '上传失败：{name}',
 		uploading: '正在上传 {name}...',
 		uploadPartial: '成功 {uploaded} 张，失败 {failed} 张。',
+		uploadSkipped: '已跳过 {count} 张图片（已存在或取消覆盖）。',
 		urlCopiedNotice: '已复制 URL',
 		viewTitle: '画廊'
 	},
@@ -151,6 +152,13 @@ export const zh = {
 		localizeCompleted: '本地化已完成。',
 		openMarkdownNote: '请先打开一篇 Markdown 笔记。',
 		placeCursorOnImage: '请先将光标放在图片链接上。'
+	},
+	overwriteConfirm: {
+		cancel: '取消',
+		descriptionMany: '有 {count} 张图片与云端内容不同。是否全部覆盖？',
+		descriptionOne: '该图片与云端内容不同。是否覆盖？',
+		overwrite: '覆盖',
+		title: '覆盖云端图片？'
 	},
 	settings: {
 		active: '当前启用',

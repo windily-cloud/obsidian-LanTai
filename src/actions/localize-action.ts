@@ -62,7 +62,11 @@ export class LocalizeAction {
 		const applied = await input.note.applyEdit({
 			end: input.ref.end,
 			expected: input.ref.source,
-			replacement: this.linkService.formatTarget(localPath, input.linkStyle),
+			replacement: this.linkService.formatTargetFromRef(
+				input.ref,
+				localPath,
+				input.linkStyle
+			),
 			start: input.ref.start
 		});
 		return applied

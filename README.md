@@ -57,7 +57,7 @@ Obsidian **desktop** plugin for uploading, localizing, and downloading images wi
 - Desktop only; no paste/drag **auto-upload** in v1 (new image files still use the plugin path template).
 - No note-wide batch “download / save as”.
 - Preview/reading mode does not take over the image menu.
-- Localize/upload write conflicts fail with a notice (no overwrite, no auto suffix); **new** images dedupe like Obsidian (`name 1`).
+- Localize: existing local path → replace link only. Upload: same remote content → replace link (Gallery skips); different content → one confirm then overwrite; no auto suffix. **New** images dedupe like Obsidian (`name 1`).
 - Image compression, OCR, and toolkit-style tools are not shipped yet (related settings stubs are hidden).
 
 ## Contributing & releasing

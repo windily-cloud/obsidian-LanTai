@@ -44,6 +44,7 @@ import { RequestUrlObjectStorageTransport } from './storage/request-url-object-s
 import { CommandRegistrar } from './ui/command-registrar.ts';
 import { pickAndUploadGalleryImages } from './ui/gallery-uploader.ts';
 import { ImageContextMenuController } from './ui/image-context-menu-controller.ts';
+import { confirmOverwriteImages } from './ui/overwrite-confirm-modal.ts';
 import { registerStorageGallery } from './ui/storage-gallery-registration.ts';
 
 interface LegacySettingsFields {
@@ -108,6 +109,7 @@ export class Plugin extends PluginBase {
 			})
 			: new ObsidianBrowserDownload();
 		const facade = new ImageActionFacade({
+			confirmOverwrite: (differentCount): Promise<boolean> => confirmOverwriteImages(this.app, differentCount),
 			createStorage: createObjectStorage,
 			download,
 			downloadAction: new DownloadAction(),
@@ -130,6 +132,7 @@ export class Plugin extends PluginBase {
 			http,
 			localizeAction: new LocalizeAction(pathResolver, linkService),
 			parser,
+			pathResolver,
 			recordUpload: (entry): Promise<void> => uploadHistory.append(entry),
 			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
 			settings: this.settings,
@@ -210,6 +213,7 @@ export class Plugin extends PluginBase {
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
 			pickAndUpload: (request): void => {
 				pickAndUploadGalleryImages({
+					confirmOverwrite: (differentCount): Promise<boolean> => confirmOverwriteImages(this.app, differentCount),
 					history: uploadHistory,
 					onUploaded: (): void => {
 						request.onUploaded();

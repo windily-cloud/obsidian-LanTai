@@ -1,6 +1,12 @@
+export interface ObjectStat {
+	readonly size: number;
+}
+
 export interface ObjectStorage {
 	buildPublicUrl(objectKey: string): Promise<string>;
+	download(objectKey: string): Promise<Uint8Array>;
 	exists(objectKey: string): Promise<boolean>;
+	stat(objectKey: string): Promise<null | ObjectStat>;
 	upload(objectKey: string, bytes: Uint8Array): Promise<void>;
 }
 

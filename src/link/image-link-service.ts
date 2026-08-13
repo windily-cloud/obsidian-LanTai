@@ -48,6 +48,25 @@ export class ImageLinkService {
 		return this.formatter.format({ linkStyle, target });
 	}
 
+	public formatTargetFromRef(
+		ref: ImageRef,
+		target: string,
+		linkStyle: 'markdown' | 'wiki'
+	): string {
+		const isRemote = /^https?:\/\//i.test(target);
+		const kind: ImageRef['kind'] = isRemote || linkStyle === 'markdown' ? 'markdown' : 'wiki';
+		return formatDecoratedLink(
+			{
+				...ref,
+				isRemote,
+				kind,
+				markdownTitle: kind === 'markdown' ? ref.markdownTitle : null,
+				target
+			},
+			ref.decorations
+		);
+	}
+
 	public getLayout(ref: ImageRef): ImageLayout | null {
 		const firstLayoutIndex = ref.kind === 'markdown' ? MARKDOWN_FIRST_LAYOUT_INDEX : 0;
 		return ref.decorations.slice(firstLayoutIndex).find(isImageLayout) ?? null;
@@ -73,7 +92,7 @@ export class ImageLinkService {
 		if (content.slice(ref.start, ref.end) !== ref.source) {
 			throw new Error(t('errors.linkChangedBeforeUpdate'));
 		}
-		const replacement = this.formatTarget(toTarget, linkStyle);
+		const replacement = this.formatTargetFromRef(ref, toTarget, linkStyle);
 		return `${content.slice(0, ref.start)}${replacement}${content.slice(ref.end)}`;
 	}
 

@@ -4,6 +4,7 @@ import type {
 	ObjectStorageTransport
 } from './object-storage-transport.ts';
 import type {
+	ObjectStat,
 	ObjectStorage,
 	ObjectStorageBrowser,
 	ObjectStorageFile,
@@ -80,21 +81,18 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		this.assertOk(response.status, response.body);
 	}
 
-	public async exists(objectKey: string): Promise<boolean> {
-		// ListObjectsV2 with prefix — never HeadObject. Android Obsidian requestUrl
-		// Reads response bodies; S3 HEAD returns Content-Length with an empty body and
-		// OkHttp aborts with IOException Stream closed.
+	public async download(objectKey: string): Promise<Uint8Array> {
 		const response = await this.send({
 			headers: {},
 			method: 'GET',
-			url: buildListObjectsUrl(this.connection, { limit: EXISTS_PROBE_MAX_KEYS, prefix: objectKey })
+			url: buildObjectUrl(this.connection, objectKey)
 		});
-		if (response.status === HTTP_NOT_FOUND) {
-			return false;
-		}
 		this.assertOk(response.status, response.body);
-		const page = parseListObjectsV2Xml(new TextDecoder().decode(response.body));
-		return page.items.some((item) => item.key === objectKey);
+		return response.body;
+	}
+
+	public async exists(objectKey: string): Promise<boolean> {
+		return (await this.stat(objectKey)) !== null;
 	}
 
 	public async list(options?: S3ObjectStorageListOptions): Promise<ObjectStorageListResult> {
@@ -126,6 +124,24 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 			}
 			cursor = page.cursor;
 		} while (cursor !== undefined);
+	}
+
+	public async stat(objectKey: string): Promise<null | ObjectStat> {
+		// ListObjectsV2 with prefix — never HeadObject. Android Obsidian requestUrl
+		// Reads response bodies; S3 HEAD returns Content-Length with an empty body and
+		// OkHttp aborts with IOException Stream closed.
+		const response = await this.send({
+			headers: {},
+			method: 'GET',
+			url: buildListObjectsUrl(this.connection, { limit: EXISTS_PROBE_MAX_KEYS, prefix: objectKey })
+		});
+		if (response.status === HTTP_NOT_FOUND) {
+			return null;
+		}
+		this.assertOk(response.status, response.body);
+		const page = parseListObjectsV2Xml(new TextDecoder().decode(response.body));
+		const match = page.items.find((item) => item.key === objectKey);
+		return match === undefined ? null : { size: match.size };
 	}
 
 	public async upload(objectKey: string, bytes: Uint8Array): Promise<void> {

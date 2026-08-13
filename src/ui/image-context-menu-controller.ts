@@ -526,7 +526,8 @@ export class ImageContextMenuController {
 		if (resolved.ref && replaced.newPath !== replaced.originalPath) {
 			const applied = await this.applyLinkEdit(
 				resolved.ref,
-				this.linkService.formatTarget(
+				this.linkService.formatTargetFromRef(
+					resolved.ref,
 					replaced.newPath,
 					resolved.ref.kind === 'wiki' ? 'wiki' : 'markdown'
 				),

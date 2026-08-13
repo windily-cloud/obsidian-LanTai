@@ -11,6 +11,7 @@ type I18nKey =
 	| `gallery.${keyof typeof en.gallery}`
 	| `menu.${keyof typeof en.menu}`
 	| `notices.${keyof typeof en.notices}`
+	| `overwriteConfirm.${keyof typeof en.overwriteConfirm}`
 	| `settings.${keyof typeof en.settings}`;
 
 type InterpolationVars = Record<string, boolean | number | string | undefined>;
