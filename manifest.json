@@ -1,8 +1,8 @@
 {
 	"id": "lantai",
 	"name": "LanTai",
-	"version": "0.0.5",
-	"minAppVersion": "1.13.6",
+	"version": "0.0.6",
+	"minAppVersion": "1.13.7",
 	"description": "Upload, localize, and download images with built-in object storage profiles.",
 	"author": "windily-cloud",
 	"authorUrl": "https://github.com/windily-cloud",

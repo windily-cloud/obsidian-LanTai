@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.0.6
+
+- fix: 收紧仅文件内使用的 export，通过 find-overexposed
+- docs: 更新 README 覆盖桌面/移动端，并规范 JSON 缩进
+- feat: 上传冲突按内容分流确认覆盖，换链保留 layout/size
+- feat: 自研 S3 协议栈，并修复桌面特殊文件名签名与移动端上传
+
 ## 0.0.5
 
 - fix: 收紧仅文件内使用的 export，通过 find-overexposed
