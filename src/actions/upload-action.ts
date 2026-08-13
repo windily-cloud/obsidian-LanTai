@@ -12,7 +12,9 @@ import type { ActionResult } from './action-result.ts';
 import { t } from '../i18n/index.ts';
 import { probeObjectExists } from '../storage/probe-object-exists.ts';
 
-export interface UploadActionInput {
+export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
+
+interface UploadActionInput {
 	ctx: NameTemplateContext;
 	deleteSourceAfterUpload: boolean;
 	hasRemainingReference(): Promise<boolean>;
@@ -28,8 +30,6 @@ export interface UploadActionInput {
 	vault: VaultBinary;
 	writeMode: UploadWriteMode;
 }
-
-export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
 
 export class UploadAction {
 	public constructor(

@@ -1,4 +1,4 @@
-export type MobileImageContextMenuAction = 'pass' | 'show' | 'suppress';
+type MobileImageContextMenuAction = 'pass' | 'show' | 'suppress';
 
 interface MobileImageContextMenuInput {
 	readonly hitSourceImage: boolean;

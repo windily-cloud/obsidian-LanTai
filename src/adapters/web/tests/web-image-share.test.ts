@@ -10,13 +10,9 @@ import { WebImageShare } from '../web-image-share.ts';
 describe('WebImageShare', () => {
 	it('shares a file when the web share API is available', async () => {
 		const share = vi.fn().mockResolvedValue(undefined);
-		const adapter = new WebImageShare({
-			canShare: (): boolean => true,
-			share
-		});
+		const adapter = new WebImageShare({ share });
 		const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1]);
 
-		expect(adapter.canShare()).toBe(true);
 		await adapter.shareFile({ bytes, name: 'photo.png' });
 
 		expect(share).toHaveBeenCalledTimes(1);

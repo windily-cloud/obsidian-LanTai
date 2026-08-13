@@ -254,7 +254,7 @@ export class CommandRegistrar {
 	}
 }
 
-export function editorImageMenuActions(isRemote: boolean): readonly SingleAction[] {
+function editorImageMenuActions(isRemote: boolean): readonly SingleAction[] {
 	return isRemote ? ['localize', 'download'] : ['upload', 'download'];
 }
 

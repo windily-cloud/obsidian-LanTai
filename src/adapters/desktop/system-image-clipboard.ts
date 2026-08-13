@@ -35,6 +35,7 @@ export class SystemImageClipboard {
 		this.writeImage = options.writeImage?.bind(options);
 	}
 
+	/** Copies image bytes to the system clipboard (Electron nativeImage). */
 	public copy(bytes: Uint8Array): void {
 		const electron = this.createFromBuffer && this.writeImage ? undefined : getElectron();
 		const createFromBuffer = this.createFromBuffer

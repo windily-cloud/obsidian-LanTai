@@ -1,6 +1,6 @@
 import { t } from '../../i18n/index.ts';
 
-export interface ClipboardImageItem {
+interface ClipboardImageItem {
 	readonly bytes: Uint8Array;
 	readonly type: string;
 }
@@ -24,6 +24,7 @@ export class WebImageClipboard {
 		this.writeItems = options.writeItems ?? defaultWriteItems;
 	}
 
+	/** Copies image bytes via the Web Clipboard API (mobile / non-Electron). */
 	public async copy(bytes: Uint8Array): Promise<void> {
 		await this.writeItems([{ bytes, type: sniffImageMime(bytes) }]);
 	}

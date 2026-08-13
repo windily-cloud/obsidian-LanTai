@@ -37,16 +37,16 @@ const HTTP_NOT_FOUND = 404;
 const HTTP_OK_MAX_EXCLUSIVE = 300;
 const HTTP_OK_MIN = 200;
 
-export interface S3ObjectStorageListOptions {
-	readonly cursor?: string;
-	readonly limit?: number;
-	readonly prefix?: string;
-}
-
 interface S3ObjectStorageConstructorParams {
 	readonly connection: S3Connection;
 	readonly signer?: SigV4Signer;
 	readonly transport: ObjectStorageTransport;
+}
+
+interface S3ObjectStorageListOptions {
+	readonly cursor?: string;
+	readonly limit?: number;
+	readonly prefix?: string;
 }
 
 /**

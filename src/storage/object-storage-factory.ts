@@ -19,7 +19,7 @@ import { S3ObjectStorage } from './s3-object-storage.ts';
 
 export type { StorageSecrets } from './storage-secrets.ts';
 
-export type CreateObjectStorage = (
+type CreateObjectStorage = (
 	profile: StorageProfile,
 	secrets: StorageSecrets
 ) => Promise<ObjectStorage & ObjectStorageBrowser>;

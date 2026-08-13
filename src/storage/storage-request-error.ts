@@ -26,8 +26,8 @@ interface StorageRequestErrorConstructorOptions {
 
 /** Storage failure carrying a normalized `code`, compatible with the existing error guards. */
 export class StorageRequestError extends Error {
+	/** Normalized provider-agnostic error code used by exists/credential guards. */
 	public readonly code: StorageErrorCode;
-	public readonly status: number | undefined;
 
 	public constructor(
 		code: StorageErrorCode,
@@ -37,7 +37,6 @@ export class StorageRequestError extends Error {
 		super(message, { cause: options.cause });
 		this.name = 'StorageRequestError';
 		this.code = code;
-		this.status = options.status;
 	}
 }
 

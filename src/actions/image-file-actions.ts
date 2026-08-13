@@ -4,11 +4,6 @@ import type { ImageTarget } from '../link/image-ref.ts';
 import { t } from '../i18n/index.ts';
 import { nextAvailablePath } from '../path/next-available-path.ts';
 
-export interface ReplaceImageResult {
-	readonly newPath: string;
-	readonly originalPath: string;
-}
-
 interface ImageClipboard {
 	copy(bytes: Uint8Array): Promise<void> | void;
 }
@@ -49,6 +44,11 @@ interface ImageFileActionsReplaceContentOptions {
 interface PickedImageFile {
 	readonly bytes: Uint8Array;
 	readonly name: string;
+}
+
+interface ReplaceImageResult {
+	readonly newPath: string;
+	readonly originalPath: string;
 }
 
 interface ShareFileInput {

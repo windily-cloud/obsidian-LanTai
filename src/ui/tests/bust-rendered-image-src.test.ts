@@ -7,8 +7,7 @@ import {
 import {
 	bustRenderedImageSrc,
 	imageSrcPath,
-	refreshRenderedImageSources,
-	srcMatchesVaultPath
+	refreshRenderedImageSources
 } from '../bust-rendered-image-src.ts';
 
 describe('imageSrcPath', () => {
@@ -44,22 +43,6 @@ describe('bustRenderedImageSrc', () => {
 			'app://local/vault/assets/photo.png?mtime=42',
 			42
 		)).toBe('app://local/vault/assets/photo.png?mtime=42');
-	});
-});
-
-describe('srcMatchesVaultPath', () => {
-	it('matches app:// src against a vault-relative path', () => {
-		expect(srcMatchesVaultPath(
-			'app://local/vault-id/assets/photo.png?mtime=1',
-			'assets/photo.png'
-		)).toBe(true);
-	});
-
-	it('does not match a different file', () => {
-		expect(srcMatchesVaultPath(
-			'app://local/vault/assets/photo.png?mtime=1',
-			'assets/other.png'
-		)).toBe(false);
 	});
 });
 
@@ -102,5 +85,21 @@ describe('refreshRenderedImageSources', () => {
 
 		expect(updated).toBe(1);
 		expect(match.getAttribute('src')).toBe('app://local/vault/assets/photo.png?mtime=7');
+	});
+
+	it('does not update imgs for a different vault path', () => {
+		const root = createDiv();
+		const other = root.createEl('img', {
+			attr: { src: 'app://local/vault/assets/photo.png?mtime=1' }
+		});
+
+		const updated = refreshRenderedImageSources(root, {
+			mtime: 99,
+			resourceUrl: 'app://local/vault/assets/other.png?mtime=1',
+			vaultPath: 'assets/other.png'
+		});
+
+		expect(updated).toBe(0);
+		expect(other.getAttribute('src')).toBe('app://local/vault/assets/photo.png?mtime=1');
 	});
 });

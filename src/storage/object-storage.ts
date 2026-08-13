@@ -24,13 +24,13 @@ export interface ObjectStorageFile {
 	size: number;
 }
 
-export interface ObjectStorageListOptions {
-	readonly cursor?: string;
-	readonly limit?: number;
-	readonly prefix?: string;
-}
-
 export interface ObjectStorageListResult {
 	readonly cursor?: string;
 	readonly items: ObjectStorageFile[];
+}
+
+interface ObjectStorageListOptions {
+	readonly cursor?: string;
+	readonly limit?: number;
+	readonly prefix?: string;
 }

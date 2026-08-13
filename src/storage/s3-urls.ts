@@ -1,16 +1,16 @@
 import { t } from '../i18n/index.ts';
 
-export interface BuildListObjectsUrlOptions {
-	readonly cursor?: string;
-	readonly limit?: number;
-	readonly prefix?: string;
-}
-
 /** Minimal connection shape needed to derive request URLs. */
 export interface S3UrlContext {
 	readonly bucket: string;
 	readonly endpoint: string;
 	readonly forcePathStyle: boolean;
+}
+
+interface BuildListObjectsUrlOptions {
+	readonly cursor?: string;
+	readonly limit?: number;
+	readonly prefix?: string;
 }
 
 const HEX_RADIX = 16;

@@ -7,7 +7,6 @@ import {
 
 import type { ImageRef } from '../../link/image-ref.ts';
 import type { NameTemplateContext } from '../../path/name-template-context.ts';
-import type { UploadActionInput } from '../upload-action.ts';
 
 import { FakeNoteContent } from '../../adapters/obsidian/tests/fake-note-content.ts';
 import { FakeVaultBinary } from '../../adapters/obsidian/tests/fake-vault-binary.ts';
@@ -18,6 +17,8 @@ import { AttachmentPathResolver } from '../../path/attachment-path-resolver.ts';
 import { NameTemplateEngine } from '../../path/name-template-engine.ts';
 import { FakeObjectStorage } from '../../storage/tests/fake-object-storage.ts';
 import { UploadAction } from '../upload-action.ts';
+
+type UploadActionInput = Parameters<UploadAction['execute']>[0];
 
 function baseInput(
 	partial: Partial<UploadActionInput> & Pick<UploadActionInput, 'note' | 'ref' | 'storage' | 'vault'>

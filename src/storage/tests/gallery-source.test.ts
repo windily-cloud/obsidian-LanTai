@@ -12,7 +12,6 @@ import type {
 import type {
 	ObjectStorageBrowser,
 	ObjectStorageFile,
-	ObjectStorageListOptions,
 	ObjectStorageListResult
 } from '../object-storage.ts';
 import type {
@@ -29,6 +28,8 @@ const PUBLIC_BASE = 'https://cdn.example.com';
 interface FakeBrowserStorageOptions {
 	readonly existsError?: Error;
 }
+
+type ObjectStorageListOptions = NonNullable<Parameters<ObjectStorageBrowser['list']>[0]>;
 
 class FakeBrowserStorage implements ObjectStorageBrowser {
 	public readonly deletedKeys: string[] = [];

@@ -1,11 +1,11 @@
 import type { ObjectStorageFile } from './object-storage.ts';
 
-export interface S3ErrorFields {
+interface S3ErrorFields {
 	readonly code?: string;
 	readonly message?: string;
 }
 
-export interface S3ListPage {
+interface S3ListPage {
 	readonly cursor?: string;
 	readonly items: ObjectStorageFile[];
 }

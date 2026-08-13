@@ -49,7 +49,15 @@ export function refreshRenderedImageSources(
 	return updated;
 }
 
-export function srcMatchesVaultPath(src: string, vaultPath: string): boolean {
+function decodeSafely(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+function srcMatchesVaultPath(src: string, vaultPath: string): boolean {
 	const path = decodeSafely(imageSrcPath(src)).replace(/\\/g, '/');
 	const needle = vaultPath.replace(/\\/g, '/').replace(/^\/+/u, '');
 	if (!needle) {
@@ -58,12 +66,4 @@ export function srcMatchesVaultPath(src: string, vaultPath: string): boolean {
 	return path === needle
 		|| path.endsWith(`/${needle}`)
 		|| path.endsWith(needle);
-}
-
-function decodeSafely(value: string): string {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
 }

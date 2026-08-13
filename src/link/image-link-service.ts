@@ -44,10 +44,6 @@ export class ImageLinkService {
 		return formatDecoratedLink(ref, decorations);
 	}
 
-	public formatTarget(target: string, linkStyle: 'markdown' | 'wiki'): string {
-		return this.formatter.format({ linkStyle, target });
-	}
-
 	public formatTargetFromRef(
 		ref: ImageRef,
 		target: string,

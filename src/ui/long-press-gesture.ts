@@ -1,13 +1,8 @@
 export const LONG_PRESS_HOLD_MS = 500;
 export const LONG_PRESS_MAX_MOVE_PX = 12;
 
-export interface ClearableTimer {
+interface ClearableTimer {
 	clear(): void;
-}
-
-export interface LongPressPoint {
-	readonly x: number;
-	readonly y: number;
 }
 
 interface LongPressGestureConstructorParams {
@@ -15,6 +10,11 @@ interface LongPressGestureConstructorParams {
 	readonly maxMovePx: number;
 	onLongPress(this: void, point: LongPressPoint): void;
 	schedule?(this: void, callback: () => void, delayMs: number): ClearableTimer;
+}
+
+interface LongPressPoint {
+	readonly x: number;
+	readonly y: number;
 }
 
 type LongPressScheduler = (callback: () => void, delayMs: number) => ClearableTimer;

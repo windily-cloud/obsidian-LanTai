@@ -4,12 +4,16 @@ import {
 	it
 } from 'vitest';
 
-import type {
-	ClearableTimer,
-	LongPressPoint
-} from '../long-press-gesture.ts';
-
 import { LongPressGesture } from '../long-press-gesture.ts';
+
+interface ClearableTimer {
+	clear(): void;
+}
+
+interface LongPressPoint {
+	readonly x: number;
+	readonly y: number;
+}
 
 interface TestClock {
 	advance(ms: number): void;
