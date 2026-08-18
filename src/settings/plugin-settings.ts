@@ -24,11 +24,6 @@ import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 export type AttachmentBase = 'note' | 'vault';
 export type LinkStyle = 'markdown' | 'wiki';
 
-export interface SettingsTabRefreshTarget {
-	display(): void;
-	update?(): void;
-}
-
 interface BuildLanTaiSettingDefinitionsParams {
 	buildSectionContext(): S3SectionContext;
 	readonly pathResolver: AttachmentPathResolver;
@@ -43,6 +38,11 @@ interface PluginSettingsTabConstructorParams {
 	readonly plugin: Plugin;
 	readonly saveSettings: PersistPluginSettings;
 	readonly settings: PluginSettings;
+}
+
+interface SettingsTabRefreshTarget {
+	display(): void;
+	update?(): void;
 }
 
 export class PluginSettings {

@@ -6,11 +6,6 @@ export const GALLERY_DROP_EMBED_MIME = 'application/x-lantai-gallery-embed';
 
 const formatter = new ImageLinkFormatter();
 
-export interface GalleryEditorDropEvent {
-	readonly dataTransfer: GalleryDropTransfer | null;
-	preventDefault(): void;
-}
-
 interface FormatGalleryDropEmbedInput {
 	readonly image: Pick<GalleryImage, 'key' | 'kind'>;
 	readonly linkStyle: 'markdown' | 'wiki';
@@ -24,6 +19,11 @@ interface GalleryDropFileList {
 interface GalleryDropTransfer {
 	readonly files: GalleryDropFileList;
 	getData(type: string): string;
+}
+
+interface GalleryEditorDropEvent {
+	readonly dataTransfer: GalleryDropTransfer | null;
+	preventDefault(): void;
 }
 
 export function formatGalleryDropEmbed(input: FormatGalleryDropEmbedInput): string {

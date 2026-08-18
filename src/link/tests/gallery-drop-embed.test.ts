@@ -5,7 +5,6 @@ import {
 } from 'vitest';
 
 import type { GalleryImage } from '../../storage/gallery-source.ts';
-import type { GalleryEditorDropEvent } from '../gallery-drop-embed.ts';
 
 import {
 	formatGalleryDropEmbed,
@@ -13,12 +12,23 @@ import {
 	interceptGalleryEditorDrop
 } from '../gallery-drop-embed.ts';
 
-interface DropEventFixture extends GalleryEditorDropEvent {
+interface DropEventFixture {
+	dataTransfer: GalleryDropTransfer;
 	defaultPrevented: boolean;
+	preventDefault(): void;
 }
 
 interface DropEventOptions {
 	readonly fileCount?: number;
+}
+
+interface GalleryDropFileList {
+	readonly length: number;
+}
+
+interface GalleryDropTransfer {
+	readonly files: GalleryDropFileList;
+	getData(type: string): string;
 }
 
 describe('formatGalleryDropEmbed', () => {
