@@ -1,11 +1,13 @@
 import type {
 	App,
 	Plugin,
-	Setting,
 	SettingDefinitionItem
 } from 'obsidian';
 
-import { PluginSettingTab } from 'obsidian';
+import {
+	PluginSettingTab,
+	Setting
+} from 'obsidian';
 
 import type { AttachmentPathResolver } from '../path/attachment-path-resolver.ts';
 import type { S3SectionContext } from './sections/s3/s3-section.ts';
@@ -21,6 +23,11 @@ import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
 export type LinkStyle = 'markdown' | 'wiki';
+
+export interface SettingsTabRefreshTarget {
+	display(): void;
+	update?(): void;
+}
 
 interface BuildLanTaiSettingDefinitionsParams {
 	buildSectionContext(): S3SectionContext;
@@ -66,6 +73,62 @@ export class PluginSettingsTab extends PluginSettingTab {
 		this.settings = params.settings;
 	}
 
+	public override display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+
+		new Setting(containerEl).setName(t('settings.general')).setHeading();
+		new Setting(containerEl)
+			.setName(t('settings.attachmentBase'))
+			.setDesc(t('settings.attachmentBaseDesc'))
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption('note', t('settings.currentNoteFolder'))
+					.addOption('vault', t('settings.vaultRoot'))
+					.setValue(this.settings.attachmentBase)
+					.onChange((value) => {
+						this.settings.attachmentBase = value as AttachmentBase;
+						this.persistAndRedisplay();
+					});
+			});
+		renderLocalPathTemplate(
+			new Setting(containerEl).setName(t('settings.localPathTemplate')),
+			this.pathResolver,
+			this.settings,
+			(): void => {
+				this.persist();
+			}
+		);
+		new Setting(containerEl)
+			.setName(t('settings.linkStyle'))
+			.setDesc(t('settings.linkStyleDesc'))
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption('markdown', t('settings.markdown'))
+					.addOption('wiki', t('settings.wiki'))
+					.setValue(this.settings.linkStyle)
+					.onChange((value) => {
+						this.settings.linkStyle = value as LinkStyle;
+						this.persist();
+					});
+			});
+
+		new Setting(containerEl).setName(t('settings.s3')).setHeading();
+		displayS3SectionBody(
+			containerEl.createDiv('lantai-s3-settings-host'),
+			this.buildSectionContext()
+		);
+		new Setting(containerEl)
+			.setName(t('settings.deleteSourceAfterUpload'))
+			.setDesc(t('settings.deleteSourceAfterUploadDesc'))
+			.addToggle((toggle) => {
+				toggle.setValue(this.settings.deleteSourceAfterUpload).onChange((value) => {
+					this.settings.deleteSourceAfterUpload = value;
+					this.persist();
+				});
+			});
+	}
+
 	public override getControlValue(key: string): unknown {
 		return this.settings[key as keyof PluginSettings];
 	}
@@ -100,7 +163,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 		}
 		await this.saveSettings();
 		if (key === 'attachmentBase') {
-			this.update();
+			this.refreshTab();
 		}
 	}
 
@@ -131,7 +194,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 			},
 			profileDrafts: this.profileDrafts,
 			redisplay: (): void => {
-				this.update();
+				this.refreshTab();
 			},
 			registry: this.registry,
 			settings: this.settings,
@@ -163,9 +226,13 @@ export class PluginSettingsTab extends PluginSettingTab {
 		});
 	}
 
+	private refreshTab(): void {
+		refreshSettingsTab(this);
+	}
+
 	private async saveAndRedisplay(): Promise<void> {
 		await this.saveSettings();
-		this.update();
+		this.refreshTab();
 	}
 
 	private toggleProfileExpanded(profileId: string): void {
@@ -175,7 +242,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 		} else {
 			this.expandedProfileIds.add(profileId);
 		}
-		this.update();
+		this.refreshTab();
 	}
 }
 
@@ -253,6 +320,15 @@ export function buildLanTaiSettingDefinitions(
 			type: 'group'
 		}
 	];
+}
+
+/** 1.13+ uses `update()`; 1.11.4–1.12 only have `display()`. */
+export function refreshSettingsTab(tab: SettingsTabRefreshTarget): void {
+	if (typeof tab.update === 'function') {
+		tab.update();
+		return;
+	}
+	tab.display();
 }
 
 function cloneProfile(profile: StorageProfile): StorageProfile {

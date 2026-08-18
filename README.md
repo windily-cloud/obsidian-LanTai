@@ -16,7 +16,7 @@ LanTai combines upload, localize, naming templates, and gallery management in on
 
 ## Requirements
 
-- Obsidian **≥ 1.13.6** (credentials use Secret Storage / `SecretComponent`)
+- Obsidian **≥ 1.11.4** (credentials use Secret Storage / `SecretComponent`)
 
 ## Quick start
 

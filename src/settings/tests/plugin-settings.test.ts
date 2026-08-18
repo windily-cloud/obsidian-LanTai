@@ -1,8 +1,4 @@
-import type {
-	App,
-	SettingDefinitionGroup,
-	SettingDefinitionItem
-} from 'obsidian';
+import type { App } from 'obsidian';
 
 import {
 	describe,
@@ -18,11 +14,18 @@ import { NameTemplateEngine } from '../../path/name-template-engine.ts';
 import { StorageProfileRegistry } from '../helpers/storage-profile-registry.ts';
 import {
 	buildLanTaiSettingDefinitions,
-	PluginSettings
+	PluginSettings,
+	refreshSettingsTab
 } from '../plugin-settings.ts';
 
 interface SettingControlShape {
 	key: string;
+	type: string;
+}
+
+interface SettingGroupShape {
+	heading?: string;
+	items?: unknown[];
 	type: string;
 }
 
@@ -51,6 +54,31 @@ describe('PluginSettings', () => {
 	});
 });
 
+describe('refreshSettingsTab', () => {
+	it('uses update when the declarative settings API is present', () => {
+		const calls: string[] = [];
+		refreshSettingsTab({
+			display(): void {
+				calls.push('display');
+			},
+			update(): void {
+				calls.push('update');
+			}
+		});
+		expect(calls).toEqual(['update']);
+	});
+
+	it('falls back to display when update is missing', () => {
+		const calls: string[] = [];
+		refreshSettingsTab({
+			display(): void {
+				calls.push('display');
+			}
+		});
+		expect(calls).toEqual(['display']);
+	});
+});
+
 describe('buildLanTaiSettingDefinitions', () => {
 	it('returns searchable general controls and an S3 group without gallery upload key template', () => {
 		const settings = new PluginSettings();
@@ -65,8 +93,8 @@ describe('buildLanTaiSettingDefinitions', () => {
 		});
 
 		expect(definitions).toHaveLength(2);
-		const general = definitions[0];
-		const s3 = definitions[1];
+		const general: unknown = definitions[0];
+		const s3: unknown = definitions[1];
 		expect(isSettingGroup(general)).toBe(true);
 		expect(isSettingGroup(s3)).toBe(true);
 		if (!isSettingGroup(general) || !isSettingGroup(s3)) {
@@ -141,8 +169,8 @@ function hasRender(item: unknown): boolean {
 	return isSettingItemShape(item) && typeof item.render === 'function';
 }
 
-function isSettingGroup(item: SettingDefinitionItem | undefined): item is SettingDefinitionGroup {
-	return typeof item === 'object' && 'type' in item && item.type === 'group';
+function isSettingGroup(item: unknown): item is SettingGroupShape {
+	return typeof item === 'object' && item !== null && 'type' in item && item.type === 'group';
 }
 
 function isSettingItemShape(item: unknown): item is SettingItemShape {

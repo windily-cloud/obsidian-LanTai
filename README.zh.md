@@ -16,7 +16,7 @@
 
 ## 要求
 
-- Obsidian **≥ 1.13.6**（访问密钥使用 Secret Storage / `SecretComponent`）
+- Obsidian **≥ 1.11.4**（访问密钥使用 Secret Storage / `SecretComponent`）
 
 ## 快速开始
 

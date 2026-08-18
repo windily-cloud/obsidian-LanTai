@@ -34,6 +34,11 @@ import type { GalleryUploadRequest } from './gallery-uploader.ts';
 
 import { t } from '../i18n/index.ts';
 import {
+	formatGalleryDropEmbed,
+	GALLERY_DROP_EMBED_MIME,
+	interceptGalleryEditorDrop
+} from '../link/gallery-drop-embed.ts';
+import {
 	formatActionError,
 	isListAccessDenied,
 	validateStorageSecrets
@@ -425,6 +430,19 @@ export class StorageGalleryView extends ItemView {
 				});
 			}
 		});
+		this.registerEvent(
+			this.app.workspace.on('editor-drop', (event, editor) => {
+				if (event.defaultPrevented) {
+					return;
+				}
+				const embed = interceptGalleryEditorDrop(event);
+				if (embed === null) {
+					return;
+				}
+				event.preventDefault();
+				editor.replaceSelection(embed);
+			})
+		);
 		this.toggleSourceControls();
 		await this.loadActiveSource();
 	}
@@ -560,7 +578,7 @@ export class StorageGalleryView extends ItemView {
 			`${image.name}. Press Enter to view full size or Shift+F10 for actions.`
 		);
 		const imageEl = cardEl.createEl('img', {
-			attr: { alt: image.name, loading: 'lazy', src: url }
+			attr: { alt: image.name, draggable: 'false', loading: 'lazy', src: url }
 		});
 		imageEl.addClass('lantai-gallery-image');
 		const nameEl = cardEl.createDiv({
@@ -590,6 +608,8 @@ export class StorageGalleryView extends ItemView {
 		});
 		if (Platform.isMobile) {
 			this.bindCardLongPress(cardEl, image, url);
+		} else {
+			this.bindCardDrag(cardEl, image, url);
 		}
 		cardEl.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') {
@@ -618,6 +638,28 @@ export class StorageGalleryView extends ItemView {
 			fileName,
 			publicUrl
 		}).open();
+	}
+
+	private bindCardDrag(
+		cardEl: HTMLElement,
+		image: GalleryImage,
+		publicUrl: string
+	): void {
+		cardEl.draggable = true;
+		cardEl.addEventListener('dragstart', (event) => {
+			const data = event.dataTransfer;
+			if (!data) {
+				return;
+			}
+			const embed = formatGalleryDropEmbed({
+				image,
+				linkStyle: this.settings.linkStyle,
+				publicUrl
+			});
+			data.setData('text/plain', embed);
+			data.setData(GALLERY_DROP_EMBED_MIME, embed);
+			data.effectAllowed = 'copy';
+		});
 	}
 
 	private bindCardLongPress(

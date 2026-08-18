@@ -66,10 +66,23 @@
 	}
 
 	.lantai-profile-header {
+		align-items: center;
 		cursor: pointer;
+		flex-direction: row;
+		flex-wrap: nowrap;
 
 		.setting-item-info {
+			flex: 1 1 auto;
+			min-width: 0;
 			pointer-events: none;
+			width: auto;
+		}
+
+		.setting-item-control {
+			flex: 0 0 auto;
+			justify-content: flex-end;
+			padding-top: 0;
+			width: auto;
 		}
 	}
 
@@ -249,6 +262,14 @@
 		box-shadow: var(--shadow-s);
 		overflow: hidden;
 		transition: border-color 120ms ease, box-shadow 120ms ease;
+
+		&[draggable='true'] {
+			cursor: grab;
+
+			&:active {
+				cursor: grabbing;
+			}
+		}
 
 		&:hover,
 		&:focus-visible {
