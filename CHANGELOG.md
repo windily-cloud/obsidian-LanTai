@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.7
+
+- fix: 收紧仅文件内使用的 export，通过 find-overexposed
+- feat: 画廊拖拽插入笔记，并兼容 1.11.4 与移动端设置布局
+
 ## 0.0.6
 
 - fix: 收紧仅文件内使用的 export，通过 find-overexposed
