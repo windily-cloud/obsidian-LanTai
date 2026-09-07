@@ -58,6 +58,11 @@ export class CommandRegistrar {
 			id: 'localize-all-remote-images',
 			name: t('commands.localizeAll')
 		});
+		this.plugin.addCommand({
+			callback: (): Promise<void> => this.runVaultBatch(),
+			id: 'upload-all-vault-images',
+			name: t('commands.uploadAllVault')
+		});
 		this.registerConvertCommand('wiki', t('commands.convertToWiki'));
 		this.registerConvertCommand('markdown', t('commands.convertToMarkdown'));
 		this.plugin.registerEvent(
@@ -249,6 +254,58 @@ export class CommandRegistrar {
 			}
 			await this.executeOne(action, ref, context);
 		} catch (error) {
+			this.reportError(error);
+		}
+	}
+
+	private async runVaultBatch(): Promise<void> {
+		let progressNotice: Notice | null = null;
+		try {
+			const files = this.app.vault.getMarkdownFiles();
+			const contexts: ImageActionContext[] = [];
+			for (const file of files) {
+				contexts.push({
+					note: await ObsidianNoteContent.create({ app: this.app, file }),
+					noteFilePath: file.path
+				});
+			}
+			progressNotice = new Notice('', 0);
+			let processedNotes = 0;
+			const results = await this.facade.uploadAllLocalInNotes(
+				contexts,
+				(noteFilePath): void => {
+					processedNotes += 1;
+					progressNotice?.setMessage(
+						t('notices.vaultUploadProgress', {
+							current: processedNotes,
+							note: noteFilePath,
+							total: contexts.length
+						})
+					);
+				}
+			);
+			progressNotice.hide();
+			progressNotice = null;
+			const [firstResult] = results;
+			if (results.length === 1 && firstResult !== undefined && !firstResult.ok) {
+				new Notice(firstResult.message ?? failureMessage(firstResult.reason));
+				return;
+			}
+			if (results.length === 0) {
+				new Notice(t('notices.vaultUploadNoImages'));
+				return;
+			}
+			const failures = results.filter((result) => !result.ok);
+			new Notice(
+				t('notices.vaultUploadFinished', {
+					failed: failures.length,
+					images: results.length,
+					notes: processedNotes,
+					succeeded: results.length - failures.length
+				})
+			);
+		} catch (error) {
+			progressNotice?.hide();
 			this.reportError(error);
 		}
 	}

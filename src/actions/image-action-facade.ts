@@ -216,68 +216,42 @@ export class ImageActionFacade {
 		if (!prepared.ok) {
 			return local.map(() => prepared.result);
 		}
+		return this.uploadLocalRefsInNote(context, local, prepared);
+	}
 
-		const items: PreparedUploadItem[] = [];
-		for (const ref of local) {
-			const localPath = this.resolveVaultPath(ref.target, context.noteFilePath);
-			if (!localPath) {
-				items.push({
-					kind: 'ready-result',
-					result: {
-						message: t('errors.localImageNotFound'),
-						ok: false,
-						reason: 'missing'
-					}
-				});
-				continue;
-			}
-			const ctx = createTemplateContext(ref.target, context.noteFilePath);
-			const objectKey = this.pathResolver.resolveObjectKey({
-				ctx,
-				template: prepared.profile.objectKeyTemplate
-			});
-			const localBytes = await this.vault.readBinary(localPath);
-			const classification = await classifyUploadConflict({
-				localBytes,
-				objectKey,
-				storage: prepared.storage
-			});
-			items.push({
-				classification,
-				ctx,
-				kind: 'pending',
-				localPath,
-				ref
-			});
+	/**
+	 * Uploads every local image in the given notes, preparing the storage
+	 * session once for the whole run. Notes without local image references
+	 * are skipped. `onNoteDone` fires once per processed note with that
+	 * note's results, enabling progress reporting for vault-wide batches.
+	 */
+	public async uploadAllLocalInNotes(
+		notes: readonly ImageActionContext[],
+		onNoteDone?: (noteFilePath: string, results: readonly ActionResult[]) => void
+	): Promise<ActionResult[]> {
+		const prepared = await this.prepareUploadSession();
+		if (!prepared.ok) {
+			return [prepared.result];
 		}
-
-		const pending = items.filter((item): item is PendingUploadItem => item.kind === 'pending');
-		const modes = await coordinateUploadModes({
-			classes: pending.map((item) => item.classification),
-			confirmOverwrite: this.confirmOverwrite,
-			sameMode: 'linkOnly'
-		});
-
-		let pendingIndex = 0;
 		const results: ActionResult[] = [];
-		for (const item of [...items].reverse()) {
-			if (item.kind === 'ready-result') {
-				results.push(item.result);
-				continue;
-			}
-			const mode = modes[modes.length - 1 - pendingIndex];
-			pendingIndex += 1;
-			if (mode === undefined || mode === 'skip') {
-				results.push({ cancelled: true, ok: true });
-				continue;
-			}
+		for (const context of notes) {
 			try {
-				results.push(await this.executePreparedUpload(item, prepared, context, mode));
+				const { local } = classifyRefs(
+					this.parser.parse(context.note.getContent())
+				);
+				if (local.length === 0) {
+					continue;
+				}
+				const noteResults = await this.uploadLocalRefsInNote(context, local, prepared);
+				results.push(...noteResults);
+				onNoteDone?.(context.noteFilePath, noteResults);
 			} catch (error) {
-				results.push(actionErrorResult(error));
+				const failed = actionErrorResult(error);
+				results.push(failed);
+				onNoteDone?.(context.noteFilePath, [failed]);
 			}
 		}
-		return results.reverse();
+		return results;
 	}
 
 	public async uploadOne(
@@ -414,6 +388,74 @@ export class ImageActionFacade {
 			secretAccessKey
 		});
 		return { ok: true, profile, storage };
+	}
+
+	private async uploadLocalRefsInNote(
+		context: ImageActionContext,
+		local: readonly ImageRef[],
+		prepared: PreparedUploadSession
+	): Promise<ActionResult[]> {
+		const items: PreparedUploadItem[] = [];
+		for (const ref of local) {
+			const localPath = this.resolveVaultPath(ref.target, context.noteFilePath);
+			if (!localPath) {
+				items.push({
+					kind: 'ready-result',
+					result: {
+						message: t('errors.localImageNotFound'),
+						ok: false,
+						reason: 'missing'
+					}
+				});
+				continue;
+			}
+			const ctx = createTemplateContext(ref.target, context.noteFilePath);
+			const objectKey = this.pathResolver.resolveObjectKey({
+				ctx,
+				template: prepared.profile.objectKeyTemplate
+			});
+			const localBytes = await this.vault.readBinary(localPath);
+			const classification = await classifyUploadConflict({
+				localBytes,
+				objectKey,
+				storage: prepared.storage
+			});
+			items.push({
+				classification,
+				ctx,
+				kind: 'pending',
+				localPath,
+				ref
+			});
+		}
+
+		const pending = items.filter((item): item is PendingUploadItem => item.kind === 'pending');
+		const modes = await coordinateUploadModes({
+			classes: pending.map((item) => item.classification),
+			confirmOverwrite: this.confirmOverwrite,
+			sameMode: 'linkOnly'
+		});
+
+		let pendingIndex = 0;
+		const results: ActionResult[] = [];
+		for (const item of [...items].reverse()) {
+			if (item.kind === 'ready-result') {
+				results.push(item.result);
+				continue;
+			}
+			const mode = modes[modes.length - 1 - pendingIndex];
+			pendingIndex += 1;
+			if (mode === undefined || mode === 'skip') {
+				results.push({ cancelled: true, ok: true });
+				continue;
+			}
+			try {
+				results.push(await this.executePreparedUpload(item, prepared, context, mode));
+			} catch (error) {
+				results.push(actionErrorResult(error));
+			}
+		}
+		return results.reverse();
 	}
 }
 
