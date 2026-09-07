@@ -16,6 +16,7 @@ export const zh = {
 		localizeCurrent: '本地化当前图片',
 		uploadActionName: '上传',
 		uploadAll: '上传当前笔记中的全部本地图片',
+		uploadAllVault: '上传全库所有笔记中的本地图片',
 		uploadCurrent: '上传当前图片'
 	},
 	errors: {
@@ -151,7 +152,10 @@ export const zh = {
 		imagesProcessed: '已处理 {count} 张图片。',
 		localizeCompleted: '本地化已完成。',
 		openMarkdownNote: '请先打开一篇 Markdown 笔记。',
-		placeCursorOnImage: '请先将光标放在图片链接上。'
+		placeCursorOnImage: '请先将光标放在图片链接上。',
+		vaultUploadFinished: '全库上传完成：{images} 张图片，{notes} 篇笔记，成功 {succeeded}，失败 {failed}。',
+		vaultUploadNoImages: '全库未发现可上传的本地图片。',
+		vaultUploadProgress: '正在上传全库图片：{current}/{total} 篇笔记（{note}）'
 	},
 	overwriteConfirm: {
 		cancel: '取消',

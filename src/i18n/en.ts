@@ -8,6 +8,7 @@ export const en = {
 		localizeCurrent: 'Localize current image',
 		uploadActionName: 'Upload',
 		uploadAll: 'Upload all local images in current note',
+		uploadAllVault: 'Upload all local images in vault',
 		uploadCurrent: 'Upload current image'
 	},
 	errors: {
@@ -143,7 +144,10 @@ export const en = {
 		imagesProcessed: '{count} image(s) processed.',
 		localizeCompleted: 'Localize completed.',
 		openMarkdownNote: 'Open a Markdown note first.',
-		placeCursorOnImage: 'Place the cursor on an image link first.'
+		placeCursorOnImage: 'Place the cursor on an image link first.',
+		vaultUploadFinished: 'Vault upload complete: {images} image(s) across {notes} note(s), {succeeded} succeeded, {failed} failed.',
+		vaultUploadNoImages: 'No local images found across the vault.',
+		vaultUploadProgress: 'Uploading vault images: {current}/{total} notes ({note})'
 	},
 	overwriteConfirm: {
 		cancel: 'Cancel',
