@@ -49,7 +49,8 @@ type GetSecret = (name: string) => null | string;
 
 type HasLocalReference = (
 	localPath: string,
-	context: ImageActionContext
+	context: ImageActionContext,
+	exclude?: ImageRef
 ) => Promise<boolean>;
 
 interface ImageActionFacadeConstructorParams {
@@ -339,7 +340,7 @@ export class ImageActionFacade {
 		return this.uploadAction.execute({
 			ctx: item.ctx,
 			deleteSourceAfterUpload: this.settings.deleteSourceAfterUpload,
-			hasRemainingReference: (): Promise<boolean> => this.hasRemainingLocalReference(item.localPath, context),
+			hasRemainingReference: (): Promise<boolean> => this.hasLocalReference(item.localPath, context, item.ref),
 			linkStyle: this.settings.linkStyle,
 			localPath: item.localPath,
 			note: context.note,
@@ -352,13 +353,6 @@ export class ImageActionFacade {
 			vault: this.vault,
 			writeMode
 		});
-	}
-
-	private async hasRemainingLocalReference(
-		localPath: string,
-		context: ImageActionContext
-	): Promise<boolean> {
-		return this.hasLocalReference(localPath, context);
 	}
 
 	private async prepareUploadSession(): Promise<PreparedUploadSession | UploadSessionFailure> {
@@ -375,6 +369,20 @@ export class ImageActionFacade {
 				}
 			};
 		}
+		// Lantai：没有 bucket / 公网前缀 / AK-SK，凭证是账号级的 API key，
+		// 由存储工厂在运行时从设置与 SecretStorage 读取。
+		if (profile.provider === 'lantai') {
+			try {
+				const storage = await this.createStorage(profile, {
+					accessKeyId: '',
+					secretAccessKey: ''
+				});
+				return { ok: true, profile, storage };
+			} catch (error) {
+				return { ok: false, result: actionErrorResult(error) };
+			}
+		}
+
 		if (!profile.publicBaseUrl.trim()) {
 			return {
 				ok: false,

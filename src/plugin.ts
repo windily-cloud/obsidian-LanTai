@@ -7,6 +7,7 @@ import {
 import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 
 import type { PickedImageFile } from './adapters/obsidian/pick-image-file-bytes.obsidian.ts';
+import type { NoteImageContent } from './link/has-local-image-reference.ts';
 
 import { DownloadAction } from './actions/download-action.ts';
 import { ImageActionFacade } from './actions/image-action-facade.ts';
@@ -27,6 +28,12 @@ import { ObsidianVaultImageBrowser } from './adapters/obsidian/vault-image-brows
 import { WebImageClipboard } from './adapters/web/web-image-clipboard.ts';
 import { WebImageShare } from './adapters/web/web-image-share.ts';
 import { t } from './i18n/index.ts';
+import { LanTaiAccountClient } from './lantai/lantai-account.ts';
+import {
+	DEFAULT_LANTAI_BASE_URL,
+	LANTAI_API_KEY_SECRET_NAME
+} from './lantai/lantai-credentials.ts';
+import { hasLocalImageReference } from './link/has-local-image-reference.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
 import { ImageLinkParser } from './link/image-link-parser.ts';
 import { ImageLinkService } from './link/image-link-service.ts';
@@ -34,6 +41,7 @@ import { RemoteImageReferenceFinder } from './link/remote-image-reference-finder
 import { AttachmentPathResolver } from './path/attachment-path-resolver.ts';
 import { buildNameTemplateContext } from './path/name-template-context.ts';
 import { NameTemplateEngine } from './path/name-template-engine.ts';
+import { StorageProfileRegistry } from './settings/helpers/storage-profile-registry.ts';
 import {
 	PluginSettings,
 	PluginSettingsTab
@@ -59,8 +67,16 @@ export class Plugin extends PluginBase {
 		this.settings = Object.assign(new PluginSettings(), await this.loadData());
 		delete (this.settings as LegacySettingsFields).galleryUploadKeyTemplate;
 		const gallerySource = this.settings.gallerySource as string;
-		if (gallerySource !== 'recent' && gallerySource !== 'bucket' && gallerySource !== 'vault') {
+		if (
+			gallerySource !== 'recent'
+			&& gallerySource !== 'bucket'
+			&& gallerySource !== 'vault'
+			&& gallerySource !== 'lantai'
+		) {
 			this.settings.gallerySource = 'recent';
+		}
+		if (new StorageProfileRegistry(this.settings).ensureLanTai()) {
+			await this.saveData(this.settings);
 		}
 
 		const parser = new ImageLinkParser();
@@ -76,9 +92,14 @@ export class Plugin extends PluginBase {
 		const secretStore = new ObsidianSecretStore({ app: this.app });
 		const uploadHistory = new ObsidianUploadHistoryStore({ app: this.app });
 		const vaultImages = new ObsidianVaultImageBrowser({ app: this.app });
-		const createObjectStorage = createObjectStorageFactory(
-			new RequestUrlObjectStorageTransport({ requestUrl })
-		);
+		const transport = new RequestUrlObjectStorageTransport({ requestUrl });
+		function getLanTaiApiKey(): null | string {
+			return secretStore.getSecret(LANTAI_API_KEY_SECRET_NAME);
+		}
+		const createObjectStorage = createObjectStorageFactory(transport, {
+			apiKey: getLanTaiApiKey,
+			baseUrl: (): string => DEFAULT_LANTAI_BASE_URL
+		});
 		const download = Platform.isMobile
 			? new VaultAttachmentDownload({
 				exists: (path): Promise<boolean> => vault.exists(path),
@@ -114,20 +135,28 @@ export class Plugin extends PluginBase {
 			download,
 			downloadAction: new DownloadAction(),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
-			hasLocalReference: async (localPath, context): Promise<boolean> => {
+			hasLocalReference: async (localPath, context, exclude): Promise<boolean> => {
+				const currentPath = normalizePath(context.noteFilePath);
+				const notes: NoteImageContent[] = [];
 				for (const file of this.app.vault.getMarkdownFiles()) {
-					const content = file.path === context.noteFilePath
-						? context.note.getContent()
-						: await this.app.vault.cachedRead(file);
-					if (
-						parser.parse(content).some(
-							(ref) => !ref.isRemote && vault.resolvePath(ref.target, file.path) === localPath
-						)
-					) {
-						return true;
-					}
+					const isCurrent = normalizePath(file.path) === currentPath;
+					notes.push({
+						content: isCurrent
+							? context.note.getContent()
+							: await this.app.vault.cachedRead(file),
+						path: file.path
+					});
 				}
-				return false;
+				return hasLocalImageReference({
+					localPath,
+					notes,
+					parse: (content) => parser.parse(content),
+					resolvePath: (target, noteFilePath): null | string => vault.resolvePath(target, noteFilePath),
+					samePath: (left, right): boolean => normalizePath(left) === normalizePath(right),
+					...(exclude === undefined
+						? {}
+						: { exclude: { noteFilePath: context.noteFilePath, start: exclude.start } })
+				});
 			},
 			http,
 			localizeAction: new LocalizeAction(pathResolver, linkService),
@@ -151,6 +180,16 @@ export class Plugin extends PluginBase {
 		this.addSettingTab(
 			new PluginSettingsTab({
 				app: this.app,
+				lanTai: {
+					client: new LanTaiAccountClient(transport),
+					getApiKey: getLanTaiApiKey,
+					openUrl: (url: string): void => {
+						window.open(url);
+					},
+					setApiKey: (value: null | string): void => {
+						secretStore.setSecret(LANTAI_API_KEY_SECRET_NAME, value);
+					}
+				},
 				pathResolver,
 				plugin: this,
 				saveSettings: async (): Promise<void> => this.saveData(this.settings),

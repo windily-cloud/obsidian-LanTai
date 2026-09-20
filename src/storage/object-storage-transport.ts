@@ -2,7 +2,7 @@
 export interface ObjectStorageRequest {
 	readonly body?: Uint8Array;
 	readonly headers: Record<string, string>;
-	readonly method: 'DELETE' | 'GET' | 'HEAD' | 'PUT';
+	readonly method: 'DELETE' | 'GET' | 'HEAD' | 'PATCH' | 'POST' | 'PUT';
 	readonly url: string;
 }
 

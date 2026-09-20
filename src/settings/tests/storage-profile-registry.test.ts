@@ -6,6 +6,7 @@ import {
 
 import type { StorageProfile } from '../sections/s3/storage-profile.ts';
 
+import { t } from '../../i18n/index.ts';
 import { StorageProfileRegistry } from '../helpers/storage-profile-registry.ts';
 import { PluginSettings } from '../plugin-settings.ts';
 
@@ -41,5 +42,29 @@ describe('StorageProfileRegistry', () => {
 		expect(() => {
 			reg.assertReadyForUpload(profile);
 		}).toThrow(/publicBaseUrl/i);
+	});
+
+	it('ensureLanTai prepends a lantai profile and activates it when none is active', () => {
+		const settings = new PluginSettings();
+		const reg = new StorageProfileRegistry(settings);
+		reg.add(makeProfile({ id: 'oss', name: '阿里云' }));
+		settings.activeProfileId = null;
+
+		expect(reg.ensureLanTai()).toBe(true);
+		expect(settings.profiles[0]?.provider).toBe('lantai');
+		expect(settings.profiles[0]?.name).toBe(t('settings.providerLantai'));
+		expect(settings.activeProfileId).toBe(settings.profiles[0]?.id);
+		expect(reg.list()[0]?.provider).toBe('lantai');
+	});
+
+	it('ensureLanTai does not steal an existing active profile', () => {
+		const settings = new PluginSettings();
+		const reg = new StorageProfileRegistry(settings);
+		reg.add(makeProfile({ id: 'oss', name: '阿里云' }));
+		reg.setActive('oss');
+
+		expect(reg.ensureLanTai()).toBe(true);
+		expect(settings.activeProfileId).toBe('oss');
+		expect(reg.ensureLanTai()).toBe(false);
 	});
 });

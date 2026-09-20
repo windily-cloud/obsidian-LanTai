@@ -58,4 +58,8 @@ describe('StorageProviderFields', () => {
 			'Secret Access Key'
 		);
 	});
+
+	it('has no connection fields for lantai', () => {
+		expect(StorageProviderFields.fieldsFor('lantai')).toEqual([]);
+	});
 });

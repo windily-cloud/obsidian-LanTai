@@ -8,10 +8,13 @@ import type {
 	ObjectStorage,
 	ObjectStorageBrowser,
 	ObjectStorageFile,
-	ObjectStorageListResult
+	ObjectStorageListResult,
+	ObjectStorageUploadInput,
+	ObjectStorageUploadResult
 } from './object-storage.ts';
 import type { S3Connection } from './s3-connection.ts';
 
+import { contentTypeForObjectKey } from './mime-type.ts';
 import {
 	buildListObjectsUrl,
 	buildObjectUrl,
@@ -20,16 +23,6 @@ import {
 import { parseListObjectsV2Xml } from './s3-xml.ts';
 import { SigV4Signer } from './sig-v4-signer.ts';
 import { mapS3ErrorResponse } from './storage-request-error.ts';
-
-const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
-	bmp: 'image/bmp',
-	gif: 'image/gif',
-	jpeg: 'image/jpeg',
-	jpg: 'image/jpeg',
-	png: 'image/png',
-	svg: 'image/svg+xml',
-	webp: 'image/webp'
-};
 
 const DEFAULT_LIST_PAGE_SIZE = 1000;
 const EXISTS_PROBE_MAX_KEYS = 2;
@@ -144,14 +137,15 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		return match === undefined ? null : { size: match.size };
 	}
 
-	public async upload(objectKey: string, bytes: Uint8Array): Promise<void> {
+	public async upload(input: ObjectStorageUploadInput): Promise<ObjectStorageUploadResult> {
 		const response = await this.send({
-			body: bytes,
-			headers: { 'content-type': contentTypeForObjectKey(objectKey) },
+			body: input.bytes,
+			headers: { 'content-type': contentTypeForObjectKey(input.objectKey) },
 			method: 'PUT',
-			url: buildObjectUrl(this.connection, objectKey)
+			url: buildObjectUrl(this.connection, input.objectKey)
 		});
 		this.assertOk(response.status, response.body);
+		return { key: input.objectKey, url: await this.buildPublicUrl(input.objectKey) };
 	}
 
 	private assertOk(status: number, body: Uint8Array): void {
@@ -165,10 +159,4 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		const signed = await this.signer.sign(request);
 		return this.transport.send(signed);
 	}
-}
-
-function contentTypeForObjectKey(objectKey: string): string {
-	const dot = objectKey.lastIndexOf('.');
-	const extension = dot === -1 ? '' : objectKey.slice(dot + 1).toLowerCase();
-	return MIME_BY_EXTENSION[extension] ?? 'application/octet-stream';
 }

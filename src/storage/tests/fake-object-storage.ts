@@ -4,7 +4,9 @@ import type {
 	ObjectStat,
 	ObjectStorage,
 	ObjectStorageBrowser,
-	ObjectStorageListResult
+	ObjectStorageListResult,
+	ObjectStorageUploadInput,
+	ObjectStorageUploadResult
 } from '../object-storage.ts';
 
 interface FakeObjectStorageConstructorParams {
@@ -13,6 +15,13 @@ interface FakeObjectStorageConstructorParams {
 	readonly listError?: Error;
 	readonly objectBytes?: Readonly<Record<string, Uint8Array>>;
 	readonly publicBaseUrl: string;
+	/** 模拟服务端生成键（兰台雪花 key）：upload 回此值而不是入参 objectKey。 */
+	readonly uploadedObject?: FakeUploadedObject;
+}
+
+interface FakeUploadedObject {
+	readonly key: string;
+	readonly url?: string;
 }
 
 /** Test double for ObjectStorage (+ optional browser methods for connection tests). */
@@ -26,6 +35,7 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	private readonly listError: Error | undefined;
 	private readonly objectBytes: Map<string, Uint8Array>;
 	private readonly publicBaseUrl: string;
+	private readonly uploadedObject: FakeUploadedObject | undefined;
 
 	public constructor(params: FakeObjectStorageConstructorParams) {
 		this.publicBaseUrl = params.publicBaseUrl.replace(/\/+$/, '');
@@ -33,6 +43,7 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		this.existsError = params.existsError;
 		this.listError = params.listError;
 		this.objectBytes = new Map(Object.entries(params.objectBytes ?? {}));
+		this.uploadedObject = params.uploadedObject;
 		for (const key of this.objectBytes.keys()) {
 			this.existing.add(key);
 		}
@@ -102,10 +113,12 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		return Promise.resolve({ size: bytes?.length ?? 0 });
 	}
 
-	public upload(objectKey: string, bytes: Uint8Array): Promise<void> {
-		this.uploadedKeys.push(objectKey);
-		this.existing.add(objectKey);
-		this.objectBytes.set(objectKey, bytes);
-		return noopAsync();
+	public async upload(input: ObjectStorageUploadInput): Promise<ObjectStorageUploadResult> {
+		const key = this.uploadedObject?.key ?? input.objectKey;
+		const url = this.uploadedObject?.url ?? await this.buildPublicUrl(key);
+		this.uploadedKeys.push(input.objectKey);
+		this.existing.add(key);
+		this.objectBytes.set(key, input.bytes);
+		return { key, url };
 	}
 }

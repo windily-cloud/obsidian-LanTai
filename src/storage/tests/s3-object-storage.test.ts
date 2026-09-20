@@ -36,7 +36,7 @@ describe('S3ObjectStorage.upload', () => {
 		transport.push({ status: 200 });
 		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
 
-		await storage.upload('images/cat.png', new Uint8Array([1, 2, 3]));
+		await storage.upload({ bytes: new Uint8Array([1, 2, 3]), objectKey: 'images/cat.png' });
 
 		const request = transport.singleRequest();
 		expect(request.method).toBe('PUT');
@@ -58,7 +58,7 @@ describe('S3ObjectStorage.upload', () => {
 		});
 		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
 
-		await expect(storage.upload('images/cat.png', new Uint8Array([1])))
+		await expect(storage.upload({ bytes: new Uint8Array([1]), objectKey: 'images/cat.png' }))
 			.rejects.toMatchObject({ code: 'Unauthorized', message: 'Access Denied' });
 	});
 
@@ -67,7 +67,7 @@ describe('S3ObjectStorage.upload', () => {
 		transport.push({ status: 200 });
 		const storage = new S3ObjectStorage({ connection: CONNECTION, transport });
 
-		await storage.upload('images/Follow me!.jpg', new Uint8Array([1]));
+		await storage.upload({ bytes: new Uint8Array([1]), objectKey: 'images/Follow me!.jpg' });
 
 		const request = transport.singleRequest();
 		expect(request.url).toBe('https://minio.example.com/pics/images/Follow%20me%21.jpg');

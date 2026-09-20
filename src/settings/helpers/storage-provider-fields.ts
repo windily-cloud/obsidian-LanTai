@@ -52,6 +52,10 @@ function fieldsFor(provider: StorageProvider): StorageProviderField[] {
 		case 's3':
 		case 'tencent':
 			return [...head, { key: 'region', label: t('settings.fieldRegion'), required: true }, ...tail];
+		// Lantai 是零字段配置档：服务地址与 API key 都是账号级设置，
+		// 连通性由配置档卡片内的账号段负责（见 docs/adr/0005）。
+		case 'lantai':
+			return [];
 		case 'r2':
 			return [...head, { key: 'accountId', label: t('settings.fieldAccountId'), required: true }, ...tail];
 		case 's3Compatible':

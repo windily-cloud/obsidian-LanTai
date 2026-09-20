@@ -29,7 +29,8 @@
 	width: 1em;
 }
 
-.lantai-s3-settings-host {
+.lantai-s3-settings-host,
+.lantai-account-host {
 	align-items: stretch;
 	display: flex;
 	flex-direction: column;
@@ -37,19 +38,19 @@
 	padding-block: var(--size-4-2);
 	width: 100%;
 
-	> .setting-item,
-	> .lantai-profile {
+	> .setting-item {
 		border-top: none;
+		padding-block: var(--size-4-2);
 		width: 100%;
 	}
+}
 
-	> .setting-item {
-		padding-block: var(--size-4-2);
-	}
-
+.lantai-s3-settings-host {
 	> .lantai-profile {
+		border-top: none;
 		margin-block: 0;
 		padding-left: var(--size-4-3);
+		width: 100%;
 
 		.lantai-profile-header {
 			min-height: 0;
@@ -417,6 +418,65 @@ $lantai-image-layouts: (
 			@include lantai-alt-layout($layout) {
 				display: block;
 				margin-inline: $margin-inline;
+			}
+		}
+	}
+}
+
+.lantai-usage-setting .setting-item-description {
+	font-variant-numeric: tabular-nums;
+}
+
+/* --- 兰台附件详情弹窗 --- */
+.lantai-detail-preview {
+	border-radius: var(--radius-m);
+	display: block;
+	margin: 0 auto 1rem;
+	max-height: 16rem;
+	max-width: 100%;
+	object-fit: contain;
+}
+
+.lantai-detail-info {
+	color: var(--text-muted);
+	display: flex;
+	flex-direction: column;
+	font-size: var(--font-ui-smaller);
+	gap: 0.15rem;
+	margin-bottom: 0.75rem;
+}
+
+.lantai-detail-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-bottom: 0.75rem;
+
+	.lantai-detail-empty-tags {
+		color: var(--text-faint);
+		font-size: var(--font-ui-smaller);
+	}
+
+	.lantai-detail-tag {
+		align-items: center;
+		background-color: var(--background-modifier-hover);
+		border-radius: var(--radius-s);
+		display: inline-flex;
+		font-size: var(--font-ui-smaller);
+		gap: 0.25rem;
+		padding: 0.15rem 0.4rem;
+
+		button {
+			background: none;
+			box-shadow: none;
+			color: var(--text-muted);
+			cursor: pointer;
+			height: auto;
+			line-height: 1;
+			padding: 0;
+
+			&:hover {
+				color: var(--text-error);
 			}
 		}
 	}

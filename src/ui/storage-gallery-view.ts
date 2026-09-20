@@ -38,11 +38,13 @@ import {
 	GALLERY_DROP_EMBED_MIME,
 	interceptGalleryEditorDrop
 } from '../link/gallery-drop-embed.ts';
+import { isManageableSource } from '../storage/gallery-source.ts';
 import {
 	formatActionError,
 	isListAccessDenied,
 	validateStorageSecrets
 } from '../storage/storage-credential-guard.ts';
+import { openLanTaiDetailModal } from './lantai-detail-modal.ts';
 import {
 	LONG_PRESS_HOLD_MS,
 	LONG_PRESS_MAX_MOVE_PX,
@@ -321,6 +323,7 @@ export class StorageGalleryView extends ItemView {
 	private profileSave = noopAsync();
 	private query = '';
 	private scrollEl: HTMLElement | undefined;
+	private searchComponent: SearchComponent | undefined;
 	private searchTimer: number | undefined;
 	private readonly saveSettings: () => Promise<void>;
 	private readonly settings: PluginSettings;
@@ -375,7 +378,7 @@ export class StorageGalleryView extends ItemView {
 
 		const toolbarEl = this.contentEl.createDiv('lantai-gallery-toolbar');
 		const searchEl = toolbarEl.createDiv('lantai-gallery-search');
-		new SearchComponent(searchEl)
+		this.searchComponent = new SearchComponent(searchEl)
 			.setPlaceholder(t('gallery.searchPlaceholder'))
 			.onChange((value) => {
 				this.scheduleSearch(value);
@@ -461,6 +464,10 @@ export class StorageGalleryView extends ItemView {
 			...(source.kind === 'vault'
 				? { description: t('gallery.deletesVaultFile', { path: image.key }) }
 				: {}),
+			// 兰台是软删：公网链接 7 天后才失效，必须与 S3 的硬删文案区分（设计决策 19）。
+			...(source.kind === 'lantai'
+				? { description: t('gallery.deletesLanTaiFile', { name: image.name }) }
+				: {}),
 			file: image,
 			onConfirm: async (): Promise<void> => {
 				if (source !== this.source) {
@@ -480,6 +487,18 @@ export class StorageGalleryView extends ItemView {
 			return this.createGallerySource({
 				kind,
 				profile: undefined,
+				secrets: undefined
+			});
+		}
+		// 兰台源用账号级凭证（服务地址 + API key），没有配置档下拉、也没有 AK/SK。
+		if (kind === 'lantai') {
+			const lanTaiProfile = this.getLanTaiProfile();
+			if (!lanTaiProfile) {
+				throw new Error(t('errors.lantaiProfileMissing'));
+			}
+			return this.createGallerySource({
+				kind,
+				profile: lanTaiProfile,
 				secrets: undefined
 			});
 		}
@@ -516,6 +535,11 @@ export class StorageGalleryView extends ItemView {
 			this.settings.profiles,
 			this.settings.galleryProfileId
 		);
+	}
+
+	/** 库内至多一个 lantai 配置档（设计决策 10）。 */
+	private getLanTaiProfile(): StorageProfile | undefined {
+		return this.settings.profiles.find((profile) => profile.provider === 'lantai');
 	}
 
 	private async loadMore(): Promise<void> {
@@ -589,6 +613,14 @@ export class StorageGalleryView extends ItemView {
 		cardEl.addEventListener('dblclick', () => {
 			this.openLightbox(image.name, url);
 		});
+		if (source.kind === 'lantai') {
+			// 单次点击打开管理详情；双击的第二下（detail === 2）留给灯箱。
+			cardEl.addEventListener('click', (event) => {
+				if (event.detail === 1) {
+					this.openDetail(image);
+				}
+			});
+		}
 		if (source.kind === 'recent') {
 			imageEl.addEventListener('error', () => {
 				this.handleBrokenImage(image, imageEl, generation).catch(
@@ -722,7 +754,8 @@ export class StorageGalleryView extends ItemView {
 		const segments: [GallerySourceKind, string][] = [
 			['recent', t('gallery.sourceRecent')],
 			['bucket', t('gallery.sourceBucket')],
-			['vault', t('gallery.sourceVault')]
+			['vault', t('gallery.sourceVault')],
+			['lantai', t('gallery.sourceLanTai')]
 		];
 		for (const [kind, label] of segments) {
 			const button = sourceEl.createEl('button', { text: label });
@@ -741,7 +774,7 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private createFileMenu(image: GalleryImage, publicUrl: string): Menu {
-		return new Menu()
+		const menu = new Menu()
 			.addItem((item) =>
 				item
 					.setIcon('link')
@@ -762,6 +795,36 @@ export class StorageGalleryView extends ItemView {
 						});
 					})
 			);
+		const source = this.source;
+		if (source !== undefined && isManageableSource(source)) {
+			menu.addItem((item) =>
+				item
+					.setIcon('pencil')
+					.setTitle(t('gallery.detailMenu'))
+					.onClick(() => {
+						this.openDetail(image);
+					})
+			);
+		}
+		return menu;
+	}
+
+	/** 兰台源：详情弹窗承载重命名/标题/描述/标签（设计决策 11）。 */
+	private openDetail(image: GalleryImage): void {
+		const source = this.source;
+		if (source === undefined || !isManageableSource(source)) {
+			return;
+		}
+		openLanTaiDetailModal({
+			app: this.app,
+			image,
+			onSaved: (): void => {
+				this.reset().catch((error: unknown) => {
+					this.showError(error);
+				});
+			},
+			source
+		});
 	}
 
 	private async copyUrl(publicUrl: string): Promise<void> {
@@ -816,12 +879,33 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private async openUpload(): Promise<void> {
-		if (this.settings.gallerySource === 'vault') {
+		const kind = this.settings.gallerySource;
+		if (kind === 'vault') {
 			return;
 		}
-		const profile = this.getSelectedProfile();
+		const profile = kind === 'lantai' ? this.getLanTaiProfile() : this.getSelectedProfile();
 		if (!profile) {
-			throw new Error(t('errors.noActiveStorageProfile'));
+			throw new Error(
+				t(kind === 'lantai' ? 'errors.lantaiProfileMissing' : 'errors.noActiveStorageProfile')
+			);
+		}
+		if (kind === 'lantai') {
+			// 凭证是账号级的，由存储工厂自己从设置与 SecretStorage 读取，这里不做 AK/SK 校验。
+			const storage = await this.createUploadStorage(profile, {
+				accessKeyId: '',
+				secretAccessKey: ''
+			});
+			this.pickAndUpload({
+				onUploaded: (): void => {
+					this.onUploaded().catch((error: unknown) => {
+						this.showError(error);
+					});
+				},
+				profileId: profile.id,
+				storage,
+				template: profile.objectKeyTemplate
+			});
+			return;
 		}
 		if (!profile.publicBaseUrl.trim()) {
 			throw new Error(t('errors.publicBaseUrlRequired'));
@@ -960,13 +1044,20 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private toggleSourceControls(): void {
-		const isVault = this.settings.gallerySource === 'vault';
+		const kind = this.settings.gallerySource;
+		const isVault = kind === 'vault';
+		// 兰台源不需要选配置档：服务地址与 API key 都是账号级设置。
+		const showProfile = !isVault && kind !== 'lantai';
 		if (this.profileEl) {
-			this.profileEl.style.display = isVault ? 'none' : '';
+			this.profileEl.style.display = showProfile ? '' : 'none';
 		}
 		if (this.uploadEl) {
 			this.uploadEl.style.display = isVault ? 'none' : '';
 		}
+		// 设计 §6.4：只有兰台源支持 `tag:` 前缀语法，因此只在兰台源上提示它。
+		this.searchComponent?.setPlaceholder(
+			t(kind === 'lantai' ? 'gallery.searchPlaceholderLanTai' : 'gallery.searchPlaceholder')
+		);
 	}
 
 	private updateSourceButtons(): void {

@@ -9,7 +9,9 @@ import {
 	Setting
 } from 'obsidian';
 
+import type { LanTaiAccountClient } from '../lantai/lantai-account.ts';
 import type { AttachmentPathResolver } from '../path/attachment-path-resolver.ts';
+import type { LanTaiAccountSectionContext } from './sections/lantai/lantai-account-section.ts';
 import type { S3SectionContext } from './sections/s3/s3-section.ts';
 import type { StorageProfile } from './sections/s3/storage-profile.ts';
 
@@ -22,6 +24,14 @@ import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
 import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
+/** 兰台账号段需要的外部依赖（SecretStorage、打开链接）。注入到存储配置档卡片内。 */
+export interface LanTaiAccountTabDeps {
+	readonly client: LanTaiAccountClient;
+	getApiKey(): null | string;
+	openUrl(url: string): void;
+	setApiKey(value: null | string): void;
+}
+
 export type LinkStyle = 'markdown' | 'wiki';
 
 interface BuildLanTaiSettingDefinitionsParams {
@@ -34,6 +44,7 @@ type PersistPluginSettings = () => Promise<void>;
 
 interface PluginSettingsTabConstructorParams {
 	readonly app: App;
+	readonly lanTai: LanTaiAccountTabDeps;
 	readonly pathResolver: AttachmentPathResolver;
 	readonly plugin: Plugin;
 	readonly saveSettings: PersistPluginSettings;
@@ -50,7 +61,7 @@ export class PluginSettings {
 	public attachmentBase: AttachmentBase = 'note';
 	public deleteSourceAfterUpload = false;
 	public galleryProfileId: null | string = null;
-	public gallerySource: 'bucket' | 'recent' | 'vault' = 'recent';
+	public gallerySource: 'bucket' | 'lantai' | 'recent' | 'vault' = 'recent';
 	public linkStyle: LinkStyle = 'wiki';
 	// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 	public localPathTemplate = '${originalName}.${ext}';
@@ -59,6 +70,7 @@ export class PluginSettings {
 
 export class PluginSettingsTab extends PluginSettingTab {
 	private readonly expandedProfileIds = new Set<string>();
+	private readonly lanTai: LanTaiAccountTabDeps;
 	private readonly pathResolver: AttachmentPathResolver;
 	private readonly profileDrafts = new Map<string, StorageProfile>();
 	private readonly registry: StorageProfileRegistry;
@@ -67,6 +79,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 
 	public constructor(params: PluginSettingsTabConstructorParams) {
 		super(params.app, params.plugin);
+		this.lanTai = params.lanTai;
 		this.pathResolver = params.pathResolver;
 		this.registry = new StorageProfileRegistry(params.settings);
 		this.saveSettings = (): Promise<void> => params.saveSettings();
@@ -177,6 +190,23 @@ export class PluginSettingsTab extends PluginSettingTab {
 		this.profileDrafts.set(profileId, cloneProfile(profile));
 	}
 
+	private buildLanTaiAccountContext(): LanTaiAccountSectionContext {
+		return {
+			app: this.app,
+			client: this.lanTai.client,
+			getApiKey: (): null | string => this.lanTai.getApiKey(),
+			openUrl: (url: string): void => {
+				this.lanTai.openUrl(url);
+			},
+			redisplay: (): void => {
+				this.refreshTab();
+			},
+			setApiKey: (value: null | string): void => {
+				this.lanTai.setApiKey(value);
+			}
+		};
+	}
+
 	private buildSectionContext(): S3SectionContext {
 		return {
 			app: this.app,
@@ -185,6 +215,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 			},
 			expandedProfileIds: this.expandedProfileIds,
 			getProfileDraft: (profile: StorageProfile): StorageProfile => this.getProfileDraft(profile),
+			lanTaiAccount: this.buildLanTaiAccountContext(),
 			pathResolver: this.pathResolver,
 			persist: (): void => {
 				this.persist();
@@ -296,9 +327,13 @@ export function buildLanTaiSettingDefinitions(
 			items: [
 				{
 					aliases: [
-						t('settings.newProfile'),
 						t('settings.emptyProfiles'),
-						t('settings.profileName')
+						t('settings.lantaiAccount'),
+						t('settings.lantaiApiKey'),
+						t('settings.lantaiGetKey'),
+						t('settings.newProfile'),
+						t('settings.profileName'),
+						t('settings.providerLantai')
 					],
 					name: t('settings.s3Profiles'),
 					render: (setting: Setting): void => {

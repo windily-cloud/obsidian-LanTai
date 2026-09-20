@@ -66,13 +66,16 @@ async function applyGalleryUpload(
 	}
 	try {
 		new Notice(t('gallery.uploading', { name: candidate.file.name }), UPLOAD_NOTICE_MS);
-		await params.storage.upload(candidate.key, candidate.bytes);
-		const url = await params.storage.buildPublicUrl(candidate.key);
+		const uploaded = await params.storage.upload({
+			bytes: candidate.bytes,
+			objectKey: candidate.key,
+			originalName: candidate.file.name
+		});
 		await params.history.append({
-			key: candidate.key,
+			key: uploaded.key,
 			profileId: params.profileId,
 			timestamp: Date.now(),
-			url
+			url: uploaded.url
 		});
 		return 'uploaded';
 	} catch (error) {

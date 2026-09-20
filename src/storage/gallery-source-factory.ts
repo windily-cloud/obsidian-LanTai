@@ -4,6 +4,7 @@ import type {
 	CreateGallerySourceInput,
 	GalleryDataSource
 } from './gallery-source.ts';
+import type { LanTaiObjectStorage } from './lantai-object-storage.ts';
 import type {
 	ObjectStorage,
 	ObjectStorageBrowser
@@ -12,6 +13,7 @@ import type { StorageSecrets } from './storage-secrets.ts';
 import type { UploadHistoryStore } from './upload-history.ts';
 
 import { BucketGallerySource } from './bucket-gallery-source.ts';
+import { LanTaiGallerySource } from './lantai-gallery-source.ts';
 import { RecentUploadsSource } from './recent-uploads-source.ts';
 import { VaultGallerySource } from './vault-gallery-source.ts';
 
@@ -42,6 +44,19 @@ export async function createGallerySource(
 				return new RecentUploadsSource(input.history, storage, profile.id);
 			}
 			return new BucketGallerySource(storage, profile.id);
+		}
+		case 'lantai': {
+			const { profile } = input;
+			if (!profile) {
+				throw new Error('Storage profile is missing');
+			}
+			// Lantai 没有配置档级凭证：工厂会从账号级设置读取 baseUrl 与 API key。
+			const storage = await input.storageFactory(
+				profile,
+				input.secrets ?? { accessKeyId: '', secretAccessKey: '' }
+			);
+			// 这里的窄化是安全的：storageFactory 对 provider === 'lantai' 返回 LanTaiObjectStorage。
+			return new LanTaiGallerySource(storage as LanTaiObjectStorage, profile.id);
 		}
 		case 'vault':
 			return new VaultGallerySource(input.vaultImages);

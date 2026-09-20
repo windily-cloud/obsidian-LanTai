@@ -124,9 +124,12 @@ async function checkUpload(storage: ObjectStorage & ObjectStorageBrowser): Promi
 	// eslint-disable-next-line n/no-unsupported-features/node-builtins -- desktop randomUUID
 	const key = `${PROBE_KEY_PREFIX}${crypto.randomUUID().replaceAll('-', '')}.txt`;
 	try {
-		await storage.upload(key, new TextEncoder().encode('lantai-connection-test'));
+		const uploaded = await storage.upload({
+			bytes: new TextEncoder().encode('lantai-connection-test'),
+			objectKey: key
+		});
 		try {
-			await storage.delete(key);
+			await storage.delete(uploaded.key);
 		} catch (error) {
 			return {
 				detail: `Upload OK, but delete failed: ${formatActionError(error)}`,

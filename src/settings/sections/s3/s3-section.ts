@@ -14,6 +14,7 @@ import type {
 	StorageProfileFieldKey,
 	StorageProviderField
 } from '../../helpers/storage-provider-fields.ts';
+import type { LanTaiAccountSectionContext } from '../lantai/lantai-account-section.ts';
 import type { SettingsSectionContext } from '../settings-section-context.ts';
 import type {
 	StorageProfile,
@@ -24,16 +25,19 @@ import { t } from '../../../i18n/index.ts';
 import { createObjectStorageFactory } from '../../../storage/object-storage-factory.ts';
 import { RequestUrlObjectStorageTransport } from '../../../storage/request-url-object-storage-transport.ts';
 import { testStorageConnection } from '../../../storage/test-storage-connection.ts';
+import { confirmAction } from '../../../ui/confirm-modal.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
 } from '../../helpers/path-template-ui.ts';
 import { StorageProviderFields } from '../../helpers/storage-provider-fields.ts';
+import { displayLanTaiAccountSection } from '../lantai/lantai-account-section.ts';
 
 export interface S3SectionContext extends SettingsSectionContext {
 	applyProfileDraft(profileId: string): void;
 	readonly expandedProfileIds: Set<string>;
 	getProfileDraft(profile: StorageProfile): StorageProfile;
+	readonly lanTaiAccount: LanTaiAccountSectionContext;
 	readonly profileDrafts: Map<string, StorageProfile>;
 	readonly registry: StorageProfileRegistry;
 	toggleProfileExpanded(profileId: string): void;
@@ -45,6 +49,9 @@ interface ConnectionTestButton {
 }
 
 export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionContext): void {
+	if (ctx.registry.ensureLanTai()) {
+		ctx.persist();
+	}
 	const profiles = ctx.registry.list();
 	new Setting(containerEl)
 		.setName(t('settings.s3Profiles'))
@@ -85,6 +92,25 @@ export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionCon
 	}
 }
 
+function confirmDeleteProfile(ctx: S3SectionContext, profile: StorageProfile): Promise<void> {
+	const name = profile.name || t('settings.untitledProfile');
+	return confirmAction({
+		app: ctx.app,
+		confirmText: t('settings.delete'),
+		message: t('settings.deleteProfileConfirm', { name }),
+		title: t('settings.deleteProfileTitle'),
+		warning: true
+	}).then((confirmed) => {
+		if (!confirmed) {
+			return;
+		}
+		ctx.expandedProfileIds.delete(profile.id);
+		ctx.profileDrafts.delete(profile.id);
+		ctx.registry.remove(profile.id);
+		ctx.persistAndRedisplay();
+	});
+}
+
 function connectionCheckLabel(id: ConnectionCheckId): string {
 	switch (id) {
 		case 'client':
@@ -120,6 +146,25 @@ function createProfile(): StorageProfile {
 	};
 }
 
+function displayConnectionTest(
+	parentEl: HTMLElement,
+	ctx: S3SectionContext,
+	draft: StorageProfile
+): void {
+	const testSetting = new Setting(parentEl)
+		.setName(t('settings.testConnection'))
+		.setDesc('');
+	testSetting.descEl.addClass('lantai-connection-test-desc');
+	testSetting.addButton((button) => {
+		button.setButtonText(t('settings.testConnection')).onClick(() => {
+			runConnectionTest(ctx, draft, button, testSetting).catch((error: unknown) => {
+				console.error('Connection test failed', error);
+				new Notice(error instanceof Error ? error.message : t('settings.testConnectionFailed'));
+			});
+		});
+	});
+}
+
 function displayObjectKeyTemplateField(
 	parentEl: HTMLElement,
 	ctx: S3SectionContext,
@@ -152,7 +197,11 @@ function displayProfileBody(
 		});
 	});
 	new Setting(parentEl).setName(t('settings.provider')).addDropdown((dropdown) => {
-		for (const provider of Object.keys(providerNames()) as StorageProvider[]) {
+		for (const provider of providerOrder()) {
+			// 库内至多一个 lantai 配置档：其它卡片不再提供该选项，当前卡片必须仍能选中。
+			if (provider === 'lantai' && hasOtherLanTaiProfile(ctx.settings.profiles, profile.id)) {
+				continue;
+			}
 			dropdown.addOption(provider, providerNames()[provider]);
 		}
 		dropdown.setValue(draft.provider).onChange((value) => {
@@ -164,41 +213,46 @@ function displayProfileBody(
 		displayProfileField(parentEl, ctx, draft, field);
 	}
 
-	const testSetting = new Setting(parentEl)
-		.setName(t('settings.testConnection'))
-		.setDesc('');
-	testSetting.descEl.addClass('lantai-connection-test-desc');
-	testSetting.addButton((button) => {
-		button.setButtonText(t('settings.testConnection')).onClick(() => {
-			runConnectionTest(ctx, draft, button, testSetting).catch((error: unknown) => {
-				console.error('Connection test failed', error);
-				new Notice(error instanceof Error ? error.message : t('settings.testConnectionFailed'));
-			});
-		});
-	});
+	if (draft.provider === 'lantai') {
+		displayLanTaiAccountSection(
+			parentEl.createDiv('lantai-account-host'),
+			ctx.lanTaiAccount
+		);
+	} else {
+		displayConnectionTest(parentEl, ctx, draft);
+	}
 
 	const actions = new Setting(parentEl);
 	if (!isActive) {
 		actions.addButton((button) => {
-			button.setButtonText(t('settings.setAsActive')).onClick(() => {
+			button.setButtonText(t('settings.setAsActive'));
+			if (draft.provider === 'lantai') {
+				button.setCta();
+			}
+			button.onClick(() => {
 				ctx.registry.setActive(profile.id);
 				ctx.persistAndRedisplay();
 			});
 		});
 	}
+	if (profile.provider !== 'lantai') {
+		actions.addButton((button) => {
+			button
+				.setButtonText(t('settings.delete'))
+				.setWarning()
+				.onClick(() => {
+					confirmDeleteProfile(ctx, profile).catch((error: unknown) => {
+						console.error('Failed to delete storage profile', error);
+					});
+				});
+		});
+	}
 	actions.addButton((button) => {
-		button
-			.setButtonText(t('settings.delete'))
-			.setWarning()
-			.onClick(() => {
-				ctx.expandedProfileIds.delete(profile.id);
-				ctx.profileDrafts.delete(profile.id);
-				ctx.registry.remove(profile.id);
-				ctx.persistAndRedisplay();
-			});
-	});
-	actions.addButton((button) => {
-		button.setButtonText(t('settings.save')).setCta().onClick(() => {
+		button.setButtonText(t('settings.save'));
+		if (!(draft.provider === 'lantai' && !isActive)) {
+			button.setCta();
+		}
+		button.onClick(() => {
 			ctx.applyProfileDraft(profile.id);
 			ctx.persistAndRedisplay();
 		});
@@ -307,6 +361,10 @@ function displaySecretField(
 		);
 }
 
+function hasOtherLanTaiProfile(profiles: readonly StorageProfile[], exceptId: string): boolean {
+	return profiles.some((item) => item.provider === 'lantai' && item.id !== exceptId);
+}
+
 function localizeConnectionReport(report: StorageConnectionTestReport): string {
 	return report.checks
 		.map((check) => {
@@ -340,11 +398,19 @@ function objectKeyTemplateDesc(ctx: S3SectionContext, template: string): string 
 function providerNames(): Record<StorageProvider, string> {
 	return {
 		alibaba: t('settings.providerAlibaba'),
+		lantai: t('settings.providerLantai'),
 		r2: t('settings.providerR2'),
 		s3: t('settings.providerS3'),
 		s3Compatible: t('settings.providerS3Compatible'),
 		tencent: t('settings.providerTencent')
 	};
+}
+
+function providerOrder(): StorageProvider[] {
+	return [
+		'lantai',
+		...(Object.keys(providerNames()) as StorageProvider[]).filter((provider) => provider !== 'lantai')
+	];
 }
 
 function readStringField(profile: StorageProfile, key: StorageProfileFieldKey): string {

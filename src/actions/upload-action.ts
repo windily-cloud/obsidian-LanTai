@@ -46,18 +46,30 @@ export class UploadAction {
 			template: input.objectKeyTemplate
 		});
 
-		if (input.writeMode === 'upload') {
+		// 服务端生成对象键的存储（lantai）无法预测键，存在性探测既无意义也不会命中。
+		if (input.writeMode === 'upload' && input.storage.clientKeyed !== false) {
 			if ((await probeObjectExists(input.storage, objectKey)) === true) {
 				return { ok: false, reason: 'conflict' };
 			}
 		}
 
-		if (input.writeMode !== 'linkOnly') {
-			const bytes = await input.vault.readBinary(input.localPath);
-			await input.storage.upload(objectKey, bytes);
-		}
+		// 删源只认 vault 路径。必须在改写链接前算剩余引用并排除当前这一处，
+		// 否则兰台雪花 URL 与本地文件名对不上，容易把刚上传的这一处误判为仍被引用。
+		const remainingReference = input.deleteSourceAfterUpload
+			? await input.hasRemainingReference()
+			: true;
 
-		const publicUrl = await input.storage.buildPublicUrl(objectKey);
+		// 链接与历史记录一律使用存储返回的权威 key / url：服务端可能重写扩展名。
+		let publicUrl: string;
+		let uploadedKey = objectKey;
+		if (input.writeMode === 'linkOnly') {
+			publicUrl = await input.storage.buildPublicUrl(objectKey);
+		} else {
+			const bytes = await input.vault.readBinary(input.localPath);
+			const uploaded = await input.storage.upload({ bytes, objectKey });
+			publicUrl = uploaded.url;
+			uploadedKey = uploaded.key;
+		}
 		const applied = await input.note.applyEdit({
 			end: input.ref.end,
 			expected: input.ref.source,
@@ -76,14 +88,14 @@ export class UploadAction {
 			};
 		}
 
-		if (input.deleteSourceAfterUpload && !(await input.hasRemainingReference())) {
+		if (input.deleteSourceAfterUpload && !remainingReference) {
 			await input.vault.trash(input.localPath);
 		}
 
 		if (input.writeMode !== 'linkOnly') {
 			try {
 				await input.recordUpload({
-					key: objectKey,
+					key: uploadedKey,
 					profileId: input.profileId,
 					timestamp: Date.now(),
 					url: publicUrl

@@ -211,6 +211,59 @@ describe('UploadAction', () => {
 		expect(vault.trashed).toContain('Journal/photo.png');
 	});
 
+	it('checks remaining local refs before rewriting the link', async () => {
+		const note = new FakeNoteContent('![[photo.png]]');
+		const storage = new FakeObjectStorage({ publicBaseUrl: 'https://cdn.example.com' });
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([1, 2, 3]) });
+		let contentWhenChecked = '';
+		const hasRemainingReference = vi.fn().mockImplementation(() => {
+			contentWhenChecked = note.getContent();
+			return Promise.resolve(false);
+		});
+
+		const result = await createAction().execute(baseInput({
+			deleteSourceAfterUpload: true,
+			hasRemainingReference,
+			note,
+			ref: ref('![[photo.png]]'),
+			storage,
+			vault
+		}));
+
+		expect(result.ok).toBe(true);
+		expect(hasRemainingReference).toHaveBeenCalledOnce();
+		expect(contentWhenChecked).toBe('![[photo.png]]');
+		expect(note.getContent()).toBe('![](https://cdn.example.com/images/photo.png)');
+	});
+
+	it('trashes local source when upload returns a server-generated key', async () => {
+		const note = new FakeNoteContent('![[photo.png]]');
+		const storage = new FakeObjectStorage({
+			publicBaseUrl: 'https://cdn.lantai.pkmer.cn',
+			uploadedObject: {
+				key: '1758000000000.webp',
+				url: 'https://cdn.lantai.pkmer.cn/u1/1758000000000.webp'
+			}
+		});
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([1, 2, 3]) });
+		const recordUpload = vi.fn().mockResolvedValue(undefined);
+		const result = await createAction().execute(baseInput({
+			deleteSourceAfterUpload: true,
+			note,
+			recordUpload,
+			ref: ref('![[photo.png]]'),
+			storage,
+			vault
+		}));
+		expect(result.ok).toBe(true);
+		expect(note.getContent()).toBe('![](https://cdn.lantai.pkmer.cn/u1/1758000000000.webp)');
+		expect(vault.trashed).toContain('Journal/photo.png');
+		expect(recordUpload).toHaveBeenCalledWith(expect.objectContaining({
+			key: '1758000000000.webp',
+			url: 'https://cdn.lantai.pkmer.cn/u1/1758000000000.webp'
+		}));
+	});
+
 	it('encodes spaces in public url path segments', async () => {
 		const note = new FakeNoteContent('![[Pasted image.png]]');
 		const storage = new FakeObjectStorage({ publicBaseUrl: 'https://cdn.example.com' });

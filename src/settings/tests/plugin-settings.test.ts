@@ -6,9 +6,12 @@ import {
 	it
 } from 'vitest';
 
+import type { LanTaiAccountClient } from '../../lantai/lantai-account.ts';
+import type { LanTaiAccountSectionContext } from '../sections/lantai/lantai-account-section.ts';
 import type { S3SectionContext } from '../sections/s3/s3-section.ts';
 import type { StorageProfile } from '../sections/s3/storage-profile.ts';
 
+import { t } from '../../i18n/index.ts';
 import { AttachmentPathResolver } from '../../path/attachment-path-resolver.ts';
 import { NameTemplateEngine } from '../../path/name-template-engine.ts';
 import { StorageProfileRegistry } from '../helpers/storage-profile-registry.ts';
@@ -30,6 +33,7 @@ interface SettingGroupShape {
 }
 
 interface SettingItemShape {
+	aliases?: string[];
 	control?: SettingControlShape;
 	name?: string;
 	render?: unknown;
@@ -80,7 +84,7 @@ describe('refreshSettingsTab', () => {
 });
 
 describe('buildLanTaiSettingDefinitions', () => {
-	it('returns searchable general controls and an S3 group without gallery upload key template', () => {
+	it('returns searchable general controls and a storage group without gallery upload key template', () => {
 		const settings = new PluginSettings();
 		const pathResolver = new AttachmentPathResolver(new NameTemplateEngine());
 		const registry = new StorageProfileRegistry(settings);
@@ -94,15 +98,15 @@ describe('buildLanTaiSettingDefinitions', () => {
 
 		expect(definitions).toHaveLength(2);
 		const general: unknown = definitions[0];
-		const s3: unknown = definitions[1];
+		const storage: unknown = definitions[1];
 		expect(isSettingGroup(general)).toBe(true);
-		expect(isSettingGroup(s3)).toBe(true);
-		if (!isSettingGroup(general) || !isSettingGroup(s3)) {
+		expect(isSettingGroup(storage)).toBe(true);
+		if (!isSettingGroup(general) || !isSettingGroup(storage)) {
 			throw new Error('expected setting groups');
 		}
 
 		expect(typeof general.heading).toBe('string');
-		expect(typeof s3.heading).toBe('string');
+		expect(typeof storage.heading).toBe('string');
 
 		const generalItems = general.items ?? [];
 		expect(generalItems.some((item) => hasControlKey(item, 'attachmentBase', 'dropdown'))).toBe(true);
@@ -111,9 +115,10 @@ describe('buildLanTaiSettingDefinitions', () => {
 		expect(generalItems.some((item) => hasName(item, 'Gallery upload key template'))).toBe(false);
 		expect(generalItems.some((item) => hasName(item, '画廊上传键模板'))).toBe(false);
 
-		const s3Items = s3.items ?? [];
-		expect(s3Items.some((item) => hasRender(item))).toBe(true);
-		expect(s3Items.some((item) => hasControlKey(item, 'deleteSourceAfterUpload', 'toggle'))).toBe(true);
+		const storageItems = storage.items ?? [];
+		expect(storageItems.some((item) => hasRender(item))).toBe(true);
+		expect(storageItems.some((item) => hasControlKey(item, 'deleteSourceAfterUpload', 'toggle'))).toBe(true);
+		expect(storageItems.some((item) => hasAlias(item, t('settings.lantaiApiKey')))).toBe(true);
 	});
 });
 
@@ -131,6 +136,7 @@ function buildContext(
 		getProfileDraft(profile: StorageProfile): StorageProfile {
 			return profile;
 		},
+		lanTaiAccount: buildLanTaiContext(),
 		pathResolver,
 		persist(): void {
 			return undefined;
@@ -150,8 +156,31 @@ function buildContext(
 	};
 }
 
+function buildLanTaiContext(): LanTaiAccountSectionContext {
+	return {
+		app: createFakeApp(),
+		client: Object.create(null) as LanTaiAccountClient,
+		getApiKey(): null | string {
+			return null;
+		},
+		openUrl(_url: string): void {
+			return undefined;
+		},
+		redisplay(): void {
+			return undefined;
+		},
+		setApiKey(_value: null | string): void {
+			return undefined;
+		}
+	};
+}
+
 function createFakeApp(): App {
 	return Object.create(null) as App;
+}
+
+function hasAlias(item: unknown, alias: string): boolean {
+	return isSettingItemShape(item) && (item.aliases ?? []).includes(alias);
 }
 
 function hasControlKey(item: unknown, key: string, type: string): boolean {
