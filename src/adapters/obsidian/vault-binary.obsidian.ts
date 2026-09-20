@@ -92,16 +92,17 @@ function decodeLinkTarget(target: string): string {
 }
 
 function linkpathCandidates(target: string): string[] {
-	const decoded = decodeLinkTarget(target);
-	const withoutProtocol = stripResourceProtocol(decoded);
-	const fileName = basename(withoutProtocol);
 	const candidates: string[] = [];
-	if (fileName) {
-		candidates.push(fileName);
-	}
-	const normalized = normalizePath(withoutProtocol);
-	if (normalized && normalized !== fileName) {
-		candidates.push(normalized);
+	for (const variant of targetVariants(target)) {
+		const withoutProtocol = stripResourceProtocol(variant);
+		const fileName = basename(withoutProtocol);
+		if (fileName) {
+			candidates.push(fileName);
+		}
+		const normalized = normalizePath(withoutProtocol);
+		if (normalized !== '' && normalized !== fileName) {
+			candidates.push(normalized);
+		}
 	}
 	return [...new Set(candidates)];
 }
@@ -112,6 +113,11 @@ function stripResourceProtocol(target: string): string {
 		return appProtocol.groups['resourcePath'];
 	}
 	return target;
+}
+
+function targetVariants(target: string): string[] {
+	const decoded = decodeLinkTarget(target);
+	return decoded === target ? [target] : [target, decoded];
 }
 
 function toStandaloneArrayBuffer(bytes: Uint8Array): ArrayBuffer {

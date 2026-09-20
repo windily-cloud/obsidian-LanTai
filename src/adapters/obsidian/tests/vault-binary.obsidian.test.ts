@@ -34,6 +34,22 @@ describe('ObsidianVaultBinary.resolvePath', () => {
 		expect(getFirstLinkpathDest).toHaveBeenCalledWith('Pasted image.png', '未命名.md');
 	});
 
+	it('keeps a literal %7C in the filename instead of decoding it to a pipe', () => {
+		const encodedName = '其中包括图片：hero %7C cute-anime.png';
+		const getFirstLinkpathDest = vi.fn((linkpath: string) => {
+			if (linkpath === encodedName) {
+				return { path: `测试/兰台测试/images/${encodedName}` };
+			}
+			return null;
+		});
+		const vault = createVault({ getFirstLinkpathDest });
+
+		expect(vault.resolvePath(encodedName, '测试/兰台测试/测试笔记.md')).toBe(
+			`测试/兰台测试/images/${encodedName}`
+		);
+		expect(getFirstLinkpathDest).toHaveBeenCalledWith(encodedName, '测试/兰台测试/测试笔记.md');
+	});
+
 	it('resolves wiki-style bare filenames through Obsidian linkpath API', () => {
 		const getFirstLinkpathDest = vi.fn().mockReturnValue({
 			path: '_assets/attachments/photo.jpeg'
