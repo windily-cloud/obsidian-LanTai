@@ -96,17 +96,20 @@ describe('buildLanTaiSettingDefinitions', () => {
 			settings
 		});
 
-		expect(definitions).toHaveLength(2);
+		expect(definitions).toHaveLength(3);
 		const general: unknown = definitions[0];
 		const storage: unknown = definitions[1];
+		const migration: unknown = definitions[2];
 		expect(isSettingGroup(general)).toBe(true);
 		expect(isSettingGroup(storage)).toBe(true);
-		if (!isSettingGroup(general) || !isSettingGroup(storage)) {
+		expect(isSettingGroup(migration)).toBe(true);
+		if (!isSettingGroup(general) || !isSettingGroup(storage) || !isSettingGroup(migration)) {
 			throw new Error('expected setting groups');
 		}
 
 		expect(typeof general.heading).toBe('string');
 		expect(typeof storage.heading).toBe('string');
+		expect(migration.heading).toBe(t('migration.section'));
 
 		const generalItems = general.items ?? [];
 		expect(generalItems.some((item) => hasControlKey(item, 'attachmentBase', 'dropdown'))).toBe(true);
@@ -119,6 +122,21 @@ describe('buildLanTaiSettingDefinitions', () => {
 		expect(storageItems.some((item) => hasRender(item))).toBe(true);
 		expect(storageItems.some((item) => hasControlKey(item, 'deleteSourceAfterUpload', 'toggle'))).toBe(true);
 		expect(storageItems.some((item) => hasAlias(item, t('settings.lantaiApiKey')))).toBe(true);
+	});
+
+	it('omits the migration group on mobile', () => {
+		const settings = new PluginSettings();
+		const pathResolver = new AttachmentPathResolver(new NameTemplateEngine());
+		const registry = new StorageProfileRegistry(settings);
+		const definitions = buildLanTaiSettingDefinitions({
+			buildSectionContext(): S3SectionContext {
+				return buildContext(settings, pathResolver, registry);
+			},
+			isMobile: true,
+			pathResolver,
+			settings
+		});
+		expect(definitions).toHaveLength(2);
 	});
 });
 

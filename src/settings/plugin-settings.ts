@@ -5,6 +5,7 @@ import type {
 } from 'obsidian';
 
 import {
+	Platform,
 	PluginSettingTab,
 	Setting
 } from 'obsidian';
@@ -21,6 +22,7 @@ import {
 	previewContext
 } from './helpers/path-template-ui.ts';
 import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
+import { displayMigrationSection } from './sections/migration-section.ts';
 import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
@@ -36,6 +38,8 @@ export type LinkStyle = 'markdown' | 'wiki';
 
 interface BuildLanTaiSettingDefinitionsParams {
 	buildSectionContext(): S3SectionContext;
+	readonly isMobile?: boolean;
+	openMigration?(): void;
 	readonly pathResolver: AttachmentPathResolver;
 	readonly settings: PluginSettings;
 }
@@ -45,6 +49,7 @@ type PersistPluginSettings = () => Promise<void>;
 interface PluginSettingsTabConstructorParams {
 	readonly app: App;
 	readonly lanTai: LanTaiAccountTabDeps;
+	openMigration(): void;
 	readonly pathResolver: AttachmentPathResolver;
 	readonly plugin: Plugin;
 	readonly saveSettings: PersistPluginSettings;
@@ -71,6 +76,7 @@ export class PluginSettings {
 export class PluginSettingsTab extends PluginSettingTab {
 	private readonly expandedProfileIds = new Set<string>();
 	private readonly lanTai: LanTaiAccountTabDeps;
+	private readonly openMigration: () => void;
 	private readonly pathResolver: AttachmentPathResolver;
 	private readonly profileDrafts = new Map<string, StorageProfile>();
 	private readonly registry: StorageProfileRegistry;
@@ -80,6 +86,9 @@ export class PluginSettingsTab extends PluginSettingTab {
 	public constructor(params: PluginSettingsTabConstructorParams) {
 		super(params.app, params.plugin);
 		this.lanTai = params.lanTai;
+		this.openMigration = (): void => {
+			params.openMigration();
+		};
 		this.pathResolver = params.pathResolver;
 		this.registry = new StorageProfileRegistry(params.settings);
 		this.saveSettings = (): Promise<void> => params.saveSettings();
@@ -140,6 +149,7 @@ export class PluginSettingsTab extends PluginSettingTab {
 					this.persist();
 				});
 			});
+		displayMigrationSection(containerEl, this.openMigration, Platform.isMobile);
 	}
 
 	public override getControlValue(key: string): unknown {
@@ -149,6 +159,10 @@ export class PluginSettingsTab extends PluginSettingTab {
 	public override getSettingDefinitions(): SettingDefinitionItem[] {
 		return buildLanTaiSettingDefinitions({
 			buildSectionContext: (): S3SectionContext => this.buildSectionContext(),
+			isMobile: Platform.isMobile,
+			openMigration: (): void => {
+				this.openMigration();
+			},
 			pathResolver: this.pathResolver,
 			settings: this.settings
 		});
@@ -282,8 +296,7 @@ export function buildLanTaiSettingDefinitions(
 	params: BuildLanTaiSettingDefinitionsParams
 ): SettingDefinitionItem[] {
 	const { pathResolver, settings } = params;
-
-	return [
+	const groups: SettingDefinitionItem[] = [
 		{
 			heading: t('settings.general'),
 			items: [
@@ -355,6 +368,26 @@ export function buildLanTaiSettingDefinitions(
 			type: 'group'
 		}
 	];
+	if (params.isMobile !== true) {
+		groups.push({
+			heading: t('migration.section'),
+			items: [
+				{
+					desc: t('migration.sectionDesc'),
+					name: t('migration.start'),
+					render: (setting: Setting): void => {
+						setting.addButton((button) =>
+							button.setButtonText(t('migration.start')).setCta().onClick(() => {
+								params.openMigration?.();
+							})
+						);
+					}
+				}
+			],
+			type: 'group'
+		});
+	}
+	return groups;
 }
 
 /** 1.13+ uses `update()`; 1.11.4–1.12 only have `display()`. */

@@ -10,6 +10,7 @@ type I18nKey =
 	| `errors.${keyof typeof en.errors}`
 	| `gallery.${keyof typeof en.gallery}`
 	| `menu.${keyof typeof en.menu}`
+	| `migration.${keyof typeof en.migration}`
 	| `notices.${keyof typeof en.notices}`
 	| `overwriteConfirm.${keyof typeof en.overwriteConfirm}`
 	| `settings.${keyof typeof en.settings}`;

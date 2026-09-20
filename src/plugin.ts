@@ -8,6 +8,7 @@ import { PluginBase } from 'obsidian-dev-utils/obsidian/plugin/plugin';
 
 import type { PickedImageFile } from './adapters/obsidian/pick-image-file-bytes.obsidian.ts';
 import type { NoteImageContent } from './link/has-local-image-reference.ts';
+import type { StorageProfile } from './settings/sections/s3/storage-profile.ts';
 
 import { DownloadAction } from './actions/download-action.ts';
 import { ImageActionFacade } from './actions/image-action-facade.ts';
@@ -19,6 +20,9 @@ import { SystemImageClipboard } from './adapters/desktop/system-image-clipboard.
 import { ObsidianBrowserDownload } from './adapters/obsidian/browser-download.obsidian.ts';
 import { ObsidianDesktopFileActions } from './adapters/obsidian/desktop-file-actions.obsidian.ts';
 import { ObsidianHttpFetch } from './adapters/obsidian/http-fetch.obsidian.ts';
+import { listMarkdownFilesInFolders } from './adapters/obsidian/list-markdown-files-in-folders.obsidian.ts';
+import { ObsidianMigrationPlanStore } from './adapters/obsidian/migration-plan-store.obsidian.ts';
+import { ObsidianNoteContent } from './adapters/obsidian/note-content.obsidian.ts';
 import { pickImageFileBytes } from './adapters/obsidian/pick-image-file-bytes.obsidian.ts';
 import { SaveAttachmentPatchComponent } from './adapters/obsidian/save-attachment.obsidian.ts';
 import { ObsidianSecretStore } from './adapters/obsidian/secret-store.obsidian.ts';
@@ -39,6 +43,8 @@ import { ImageLinkFormatter } from './link/image-link-formatter.ts';
 import { ImageLinkParser } from './link/image-link-parser.ts';
 import { ImageLinkService } from './link/image-link-service.ts';
 import { RemoteImageReferenceFinder } from './link/remote-image-reference-finder.ts';
+import { MigrationRunner } from './migration/migration-runner.ts';
+import { MigrationUploadPacer } from './migration/migration-upload-pacer.ts';
 import { AttachmentPathResolver } from './path/attachment-path-resolver.ts';
 import { buildNameTemplateContext } from './path/name-template-context.ts';
 import { NameTemplateEngine } from './path/name-template-engine.ts';
@@ -53,6 +59,7 @@ import { RequestUrlObjectStorageTransport } from './storage/request-url-object-s
 import { CommandRegistrar } from './ui/command-registrar.ts';
 import { pickAndUploadGalleryImages } from './ui/gallery-uploader.ts';
 import { ImageContextMenuController } from './ui/image-context-menu-controller.ts';
+import { openMigrationModal } from './ui/migration-modal.ts';
 import { confirmOverwriteImages } from './ui/overwrite-confirm-modal.ts';
 import { registerStorageGallery } from './ui/storage-gallery-registration.ts';
 
@@ -175,6 +182,40 @@ export class Plugin extends PluginBase {
 			settings: this.settings,
 			vault
 		});
+		const migrationStore = new ObsidianMigrationPlanStore({ app: this.app });
+		const migrationRunner = new MigrationRunner({
+			hasLocalReference: async (localPath): Promise<boolean> => {
+				const notes: NoteImageContent[] = [];
+				for (const file of this.app.vault.getMarkdownFiles()) {
+					notes.push({
+						content: await this.app.vault.cachedRead(file),
+						path: file.path
+					});
+				}
+				return hasLocalImageReference({
+					localPath,
+					notes,
+					parse: (content) => parser.parse(content),
+					resolvePath: (target, noteFilePath): null | string => vault.resolvePath(target, noteFilePath),
+					samePath: (left, right): boolean => normalizePath(left) === normalizePath(right)
+				});
+			},
+			openNote: async (notePath): Promise<null | ObsidianNoteContent> => {
+				const file = this.app.vault.getFileByPath(normalizePath(notePath));
+				if (!file) {
+					return null;
+				}
+				return ObsidianNoteContent.create({ app: this.app, file });
+			},
+			pacer: new MigrationUploadPacer(),
+			pathResolver,
+			prepareSession: (): ReturnType<ImageActionFacade['prepareUploadSession']> => facade.prepareUploadSession(),
+			recordUpload: (entry): Promise<void> => uploadHistory.append(entry),
+			settings: this.settings,
+			store: migrationStore,
+			upload: localImageUpload,
+			vault
+		});
 
 		this.addChild(
 			new SaveAttachmentPatchComponent({
@@ -196,6 +237,29 @@ export class Plugin extends PluginBase {
 					setApiKey: (value: null | string): void => {
 						secretStore.setSecret(LANTAI_API_KEY_SECRET_NAME, value);
 					}
+				},
+				openMigration: (): void => {
+					openMigrationModal({
+						app: this.app,
+						getActiveProfile: (): null | StorageProfile => new StorageProfileRegistry(this.settings).getActive(),
+						openPlanFile: (): Promise<void> => desktop.openDefault(migrationStore.path),
+						parser,
+						runner: migrationRunner,
+						scanVault: {
+							fileSize: (path): null | number => {
+								const file = this.app.vault.getFileByPath(normalizePath(path));
+								return file ? file.stat.size : null;
+							},
+							folderExists: (path): boolean => this.app.vault.getFolderByPath(normalizePath(path)) !== null,
+							listMarkdownFilesInFolders: (folders): string[] => listMarkdownFilesInFolders(this.app, folders),
+							readNote: async (path): Promise<string> => {
+								const file = this.app.vault.getFileByPath(normalizePath(path));
+								return file ? this.app.vault.cachedRead(file) : '';
+							},
+							resolveLocalPath: (target, noteFilePath): null | string => vault.resolvePath(target, noteFilePath)
+						},
+						store: migrationStore
+					});
 				},
 				pathResolver,
 				plugin: this,
