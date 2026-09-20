@@ -71,7 +71,7 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 			method: 'DELETE',
 			url: buildObjectUrl(this.connection, objectKey)
 		});
-		this.assertOk(response.status, response.body);
+		this.assertOk(response);
 	}
 
 	public async download(objectKey: string): Promise<Uint8Array> {
@@ -80,7 +80,7 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 			method: 'GET',
 			url: buildObjectUrl(this.connection, objectKey)
 		});
-		this.assertOk(response.status, response.body);
+		this.assertOk(response);
 		return response.body;
 	}
 
@@ -98,7 +98,7 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 				...(options?.prefix === undefined ? {} : { prefix: options.prefix })
 			})
 		});
-		this.assertOk(response.status, response.body);
+		this.assertOk(response);
 		return parseListObjectsV2Xml(new TextDecoder().decode(response.body));
 	}
 
@@ -131,7 +131,7 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		if (response.status === HTTP_NOT_FOUND) {
 			return null;
 		}
-		this.assertOk(response.status, response.body);
+		this.assertOk(response);
 		const page = parseListObjectsV2Xml(new TextDecoder().decode(response.body));
 		const match = page.items.find((item) => item.key === objectKey);
 		return match === undefined ? null : { size: match.size };
@@ -144,15 +144,19 @@ export class S3ObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 			method: 'PUT',
 			url: buildObjectUrl(this.connection, input.objectKey)
 		});
-		this.assertOk(response.status, response.body);
+		this.assertOk(response);
 		return { key: input.objectKey, url: await this.buildPublicUrl(input.objectKey) };
 	}
 
-	private assertOk(status: number, body: Uint8Array): void {
-		if (status >= HTTP_OK_MIN && status < HTTP_OK_MAX_EXCLUSIVE) {
+	private assertOk(response: ObjectStorageResponse): void {
+		if (response.status >= HTTP_OK_MIN && response.status < HTTP_OK_MAX_EXCLUSIVE) {
 			return;
 		}
-		throw mapS3ErrorResponse(status, new TextDecoder().decode(body));
+		throw mapS3ErrorResponse(
+			response.status,
+			new TextDecoder().decode(response.body),
+			response.headers
+		);
 	}
 
 	private async send(request: ObjectStorageRequest): Promise<ObjectStorageResponse> {

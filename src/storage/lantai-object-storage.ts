@@ -19,6 +19,10 @@ import {
 	parseLanTaiSearchQuery
 } from './lantai-search-query.ts';
 import { contentTypeForObjectKey } from './mime-type.ts';
+import {
+	parseRetryAfterMs,
+	StorageRequestError
+} from './storage-request-error.ts';
 
 const DEFAULT_PAGE_SIZE = 100;
 /** 精确探测单键时的候选上限：服务端 list 是前缀匹配，取回少量候选后精确比对。 */
@@ -286,10 +290,16 @@ function requestError(response: ObjectStorageResponse): Error {
 		? body.error.code
 		: `HTTP ${String(response.status)}`;
 	const message = typeof body?.error?.message === 'string' ? body.error.message : '';
-	return new Error(
+	const retryAfterMs = parseRetryAfterMs(response.headers);
+	return new StorageRequestError(
+		'Provider',
 		message === ''
 			? t('errors.storageError', { code })
-			: t('errors.storageErrorWithMessage', { code, message })
+			: t('errors.storageErrorWithMessage', { code, message }),
+		{
+			...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+			status: response.status
+		}
 	);
 }
 

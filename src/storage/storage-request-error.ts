@@ -21,6 +21,7 @@ const FALLBACK_MESSAGES: Readonly<Record<StorageErrorCode, string>> = {
 
 interface StorageRequestErrorConstructorOptions {
 	readonly cause?: Error;
+	readonly retryAfterMs?: number;
 	readonly status?: number;
 }
 
@@ -28,6 +29,10 @@ interface StorageRequestErrorConstructorOptions {
 export class StorageRequestError extends Error {
 	/** Normalized provider-agnostic error code used by exists/credential guards. */
 	public readonly code: StorageErrorCode;
+	/** Optional `Retry-After` delay parsed from the response. */
+	public readonly retryAfterMs?: number;
+	/** HTTP status when the transport reported one. */
+	public readonly status?: number;
 
 	public constructor(
 		code: StorageErrorCode,
@@ -37,21 +42,51 @@ export class StorageRequestError extends Error {
 		super(message, { cause: options.cause });
 		this.name = 'StorageRequestError';
 		this.code = code;
+		if (options.retryAfterMs !== undefined) {
+			this.retryAfterMs = options.retryAfterMs;
+		}
+		if (options.status !== undefined) {
+			this.status = options.status;
+		}
 	}
 }
 
 /** Maps an S3 XML error response to a {@link StorageRequestError} (mirrors the old SDK semantics). */
-export function mapS3ErrorResponse(status: number, body: string): StorageRequestError {
+export function mapS3ErrorResponse(
+	status: number,
+	body: string,
+	headers: Readonly<Record<string, string>> = {}
+): StorageRequestError {
 	const { code: rawCode, message } = parseS3ErrorXml(body);
 	const code = classify(rawCode, status);
 	const cause = rawCode === undefined
 		? undefined
 		: Object.assign(new Error(message ?? rawCode), { code: rawCode });
+	const retryAfterMs = parseRetryAfterMs(headers);
 	return new StorageRequestError(code, message ?? FALLBACK_MESSAGES[code], {
 		...(cause === undefined ? {} : { cause }),
+		...(retryAfterMs === undefined ? {} : { retryAfterMs }),
 		status
 	});
 }
+
+export function parseRetryAfterMs(headers: Readonly<Record<string, string>>): number | undefined {
+	const retryAfter = headers['retry-after'];
+	if (retryAfter === undefined || retryAfter === '') {
+		return undefined;
+	}
+	const seconds = Number(retryAfter);
+	if (Number.isFinite(seconds)) {
+		return Math.max(0, seconds * MS_PER_SECOND);
+	}
+	const date = Date.parse(retryAfter);
+	if (Number.isNaN(date)) {
+		return undefined;
+	}
+	return Math.max(0, date - Date.now());
+}
+
+const MS_PER_SECOND = 1000;
 
 function classify(rawCode: string | undefined, status: number): StorageErrorCode {
 	if ((rawCode !== undefined && NOT_FOUND_CODES.has(rawCode)) || status === HTTP_NOT_FOUND) {

@@ -47,5 +47,12 @@ describe('mapS3ErrorResponse', () => {
 
 		expect(error.code).toBe('Provider');
 		expect(error.message).toBe('Object storage error');
+		expect(error.status).toBe(500);
+	});
+
+	it('parses Retry-After seconds from response headers', () => {
+		const error = mapS3ErrorResponse(503, '', { 'retry-after': '2' });
+		expect(error.status).toBe(503);
+		expect(error.retryAfterMs).toBe(2_000);
 	});
 });
