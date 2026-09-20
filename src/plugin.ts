@@ -12,6 +12,7 @@ import type { NoteImageContent } from './link/has-local-image-reference.ts';
 import { DownloadAction } from './actions/download-action.ts';
 import { ImageActionFacade } from './actions/image-action-facade.ts';
 import { ImageFileActions } from './actions/image-file-actions.ts';
+import { LocalImageUploadService } from './actions/local-image-upload-service.ts';
 import { LocalizeAction } from './actions/localize-action.ts';
 import { UploadAction } from './actions/upload-action.ts';
 import { SystemImageClipboard } from './adapters/desktop/system-image-clipboard.ts';
@@ -129,6 +130,12 @@ export class Plugin extends PluginBase {
 				writeBinary: (path, bytes): Promise<void> => vault.writeBinary(path, bytes)
 			})
 			: new ObsidianBrowserDownload();
+		const uploadAction = new UploadAction(pathResolver, linkService);
+		const localImageUpload = new LocalImageUploadService({
+			parser,
+			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
+			uploadAction
+		});
 		const facade = new ImageActionFacade({
 			confirmOverwrite: (differentCount): Promise<boolean> => confirmOverwriteImages(this.app, differentCount),
 			createStorage: createObjectStorage,
@@ -159,13 +166,13 @@ export class Plugin extends PluginBase {
 				});
 			},
 			http,
+			localImageUpload,
 			localizeAction: new LocalizeAction(pathResolver, linkService),
 			parser,
 			pathResolver,
 			recordUpload: (entry): Promise<void> => uploadHistory.append(entry),
 			resolveVaultPath: (target: string, noteFilePath: string): null | string => vault.resolvePath(target, noteFilePath),
 			settings: this.settings,
-			uploadAction: new UploadAction(pathResolver, linkService),
 			vault
 		});
 

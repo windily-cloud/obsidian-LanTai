@@ -15,5 +15,7 @@ type ActionFailureReason = 'conflict' | 'error' | 'missing';
 
 interface ActionSuccess {
 	cancelled?: false;
+	key?: string;
 	ok: true;
+	url?: string;
 }

@@ -13,21 +13,32 @@ import type { PluginSettings } from '../settings/plugin-settings.ts';
 import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
 import type { UploadConflictClass } from '../storage/classify-upload-conflict.ts';
 import type { ObjectStorage } from '../storage/object-storage.ts';
+import type {
+	PreparedUploadSession,
+	UploadSessionFailure
+} from '../storage/prepare-upload-session.ts';
 import type { StorageSecrets } from '../storage/storage-secrets.ts';
 import type { UploadHistoryEntry } from '../storage/upload-history.ts';
 import type { ActionResult } from './action-result.ts';
 import type { DownloadAction } from './download-action.ts';
+import type { LocalImageUploadService } from './local-image-upload-service.ts';
 import type { LocalizeAction } from './localize-action.ts';
 import type {
-	UploadAction,
+	KnownUpload,
 	UploadWriteMode
 } from './upload-action.ts';
 import type { ConfirmOverwrite } from './upload-conflict-coordinator.ts';
 
 import { t } from '../i18n/index.ts';
-import { buildNameTemplateContext } from '../path/name-template-context.ts';
+import {
+	createImageTemplateContext,
+	imageFileName
+} from '../path/image-template-context.ts';
 import { classifyUploadConflict } from '../storage/classify-upload-conflict.ts';
-import { validateStorageSecrets } from '../storage/storage-credential-guard.ts';
+import {
+	actionErrorResult,
+	prepareUploadSession
+} from '../storage/prepare-upload-session.ts';
 import { coordinateUploadModes } from './upload-conflict-coordinator.ts';
 
 export interface ImageActionContext {
@@ -61,13 +72,13 @@ interface ImageActionFacadeConstructorParams {
 	readonly getSecret: GetSecret;
 	readonly hasLocalReference: HasLocalReference;
 	readonly http: HttpFetch;
+	readonly localImageUpload: LocalImageUploadService;
 	readonly localizeAction: LocalizeAction;
 	readonly parser: ImageLinkParser;
 	readonly pathResolver: AttachmentPathResolver;
 	recordUpload(entry: UploadHistoryEntry): Promise<void>;
 	readonly resolveVaultPath: ResolveVaultPath;
 	readonly settings: PluginSettings;
-	readonly uploadAction: UploadAction;
 	readonly vault: VaultBinary;
 }
 
@@ -81,23 +92,12 @@ interface PendingUploadItem {
 
 type PreparedUploadItem = PendingUploadItem | ReadyUploadResult;
 
-interface PreparedUploadSession {
-	readonly ok: true;
-	readonly profile: StorageProfile;
-	readonly storage: ObjectStorage;
-}
-
 interface ReadyUploadResult {
 	readonly kind: 'ready-result';
 	readonly result: ActionResult;
 }
 
 type ResolveVaultPath = (target: string, noteFilePath: string) => null | string;
-
-interface UploadSessionFailure {
-	readonly ok: false;
-	readonly result: ActionResult;
-}
 
 export class ImageActionFacade {
 	private readonly confirmOverwrite: ConfirmOverwrite;
@@ -107,13 +107,13 @@ export class ImageActionFacade {
 	private readonly getSecret: ImageActionFacadeConstructorParams['getSecret'];
 	private readonly hasLocalReference: HasLocalReference;
 	private readonly http: HttpFetch;
+	private readonly localImageUpload: LocalImageUploadService;
 	private readonly localizeAction: LocalizeAction;
 	private readonly parser: ImageLinkParser;
 	private readonly pathResolver: AttachmentPathResolver;
 	private readonly recordUpload: ImageActionFacadeConstructorParams['recordUpload'];
-	private readonly resolveVaultPath: ImageActionFacadeConstructorParams['resolveVaultPath'];
+	private readonly resolveVaultPath: ResolveVaultPath;
 	private readonly settings: PluginSettings;
-	private readonly uploadAction: UploadAction;
 	private readonly vault: VaultBinary;
 
 	public constructor(params: ImageActionFacadeConstructorParams) {
@@ -125,12 +125,12 @@ export class ImageActionFacade {
 		this.getSecret = params.getSecret;
 		this.http = params.http;
 		this.hasLocalReference = params.hasLocalReference;
+		this.localImageUpload = params.localImageUpload;
 		this.localizeAction = params.localizeAction;
 		this.parser = params.parser;
 		this.pathResolver = params.pathResolver;
 		this.resolveVaultPath = params.resolveVaultPath;
 		this.settings = params.settings;
-		this.uploadAction = params.uploadAction;
 		this.vault = params.vault;
 	}
 
@@ -188,7 +188,7 @@ export class ImageActionFacade {
 				reason: 'missing'
 			};
 		}
-		const ctx = createTemplateContext(ref.target, context.noteFilePath);
+		const ctx = createImageTemplateContext(ref.target, context.noteFilePath);
 		return this.localizeAction.execute({
 			attachmentBase: this.settings.attachmentBase,
 			ctx,
@@ -205,6 +205,14 @@ export class ImageActionFacade {
 
 	public parseNote(context: ImageActionContext): ImageRef[] {
 		return this.parser.parse(context.note.getContent());
+	}
+
+	public prepareUploadSession(): Promise<PreparedUploadSession | UploadSessionFailure> {
+		return prepareUploadSession({
+			createStorage: this.createStorage,
+			getSecret: this.getSecret,
+			settings: this.settings
+		});
 	}
 
 	public async uploadAllLocalInNote(
@@ -232,7 +240,7 @@ export class ImageActionFacade {
 				});
 				continue;
 			}
-			const ctx = createTemplateContext(ref.target, context.noteFilePath);
+			const ctx = createImageTemplateContext(ref.target, context.noteFilePath);
 			const objectKey = this.pathResolver.resolveObjectKey({
 				ctx,
 				template: prepared.profile.objectKeyTemplate
@@ -259,6 +267,7 @@ export class ImageActionFacade {
 			sameMode: 'linkOnly'
 		});
 
+		const knownByPath = new Map<string, KnownUpload>();
 		let pendingIndex = 0;
 		const results: ActionResult[] = [];
 		for (const item of [...items].reverse()) {
@@ -273,7 +282,9 @@ export class ImageActionFacade {
 				continue;
 			}
 			try {
-				results.push(await this.executePreparedUpload(item, prepared, context, mode));
+				results.push(
+					await this.executePreparedUpload(item, prepared, context, mode, knownByPath)
+				);
 			} catch (error) {
 				results.push(actionErrorResult(error));
 			}
@@ -304,7 +315,7 @@ export class ImageActionFacade {
 				reason: 'missing'
 			};
 		}
-		const ctx = createTemplateContext(ref.target, context.noteFilePath);
+		const ctx = createImageTemplateContext(ref.target, context.noteFilePath);
 		const objectKey = this.pathResolver.resolveObjectKey({
 			ctx,
 			template: prepared.profile.objectKeyTemplate
@@ -327,7 +338,8 @@ export class ImageActionFacade {
 			{ classification, ctx, kind: 'pending', localPath, ref },
 			prepared,
 			context,
-			mode
+			mode,
+			new Map()
 		);
 	}
 
@@ -335,93 +347,43 @@ export class ImageActionFacade {
 		item: PendingUploadItem,
 		prepared: PreparedUploadSession,
 		context: ImageActionContext,
-		writeMode: UploadWriteMode
+		writeMode: UploadWriteMode,
+		knownByPath: Map<string, KnownUpload>
 	): Promise<ActionResult> {
-		return this.uploadAction.execute({
-			ctx: item.ctx,
+		const knownUpload = knownByPath.get(item.localPath);
+		const uploaded = await this.localImageUpload.uploadUniqueFile({
 			deleteSourceAfterUpload: this.settings.deleteSourceAfterUpload,
-			hasRemainingReference: (): Promise<boolean> => this.hasLocalReference(item.localPath, context, item.ref),
+			hasRemainingReference: (): Promise<boolean> => this.hasLocalReference(item.localPath, context),
+			...(knownUpload === undefined ? {} : { knownUpload }),
 			linkStyle: this.settings.linkStyle,
 			localPath: item.localPath,
-			note: context.note,
-			noteFolderPath: item.ctx.noteFolderPath,
 			objectKeyTemplate: prepared.profile.objectKeyTemplate,
 			profileId: prepared.profile.id,
 			recordUpload: (entry): Promise<void> => this.recordUpload(entry),
-			ref: item.ref,
 			storage: prepared.storage,
+			targets: [{
+				note: context.note,
+				noteFilePath: context.noteFilePath,
+				source: item.ref.source
+			}],
 			vault: this.vault,
-			writeMode
+			writeMode: knownUpload === undefined ? writeMode : 'linkOnly'
 		});
-	}
-
-	private async prepareUploadSession(): Promise<PreparedUploadSession | UploadSessionFailure> {
-		const profile = this.settings.profiles.find(
-			(item) => item.id === this.settings.activeProfileId
-		);
-		if (!profile) {
-			return {
-				ok: false,
-				result: {
-					message: t('errors.noActiveStorageProfile'),
-					ok: false,
-					reason: 'missing'
-				}
-			};
+		if (uploaded.key && uploaded.url) {
+			knownByPath.set(item.localPath, { key: uploaded.key, url: uploaded.url });
 		}
-		// Lantai：没有 bucket / 公网前缀 / AK-SK，凭证是账号级的 API key，
-		// 由存储工厂在运行时从设置与 SecretStorage 读取。
-		if (profile.provider === 'lantai') {
-			try {
-				const storage = await this.createStorage(profile, {
-					accessKeyId: '',
-					secretAccessKey: ''
-				});
-				return { ok: true, profile, storage };
-			} catch (error) {
-				return { ok: false, result: actionErrorResult(error) };
-			}
+		const first = uploaded.results[0];
+		if (first !== undefined) {
+			return first;
 		}
-
-		if (!profile.publicBaseUrl.trim()) {
-			return {
-				ok: false,
-				result: {
-					message: t('errors.publicBaseUrlRequired'),
-					ok: false,
-					reason: 'missing'
-				}
-			};
+		if (!uploaded.ok) {
+			return { ok: false, reason: 'error' };
 		}
-		const accessKeyId = this.getSecret(profile.accessKeyIdSecretName);
-		const secretAccessKey = this.getSecret(profile.secretAccessKeySecretName);
-		if (!accessKeyId || !secretAccessKey) {
-			return {
-				ok: false,
-				result: {
-					message: t('errors.storageSecretsMissing'),
-					ok: false,
-					reason: 'missing'
-				}
-			};
-		}
-		const secretProblem = validateStorageSecrets({
-			accessKeyId,
-			accessKeyIdSecretName: profile.accessKeyIdSecretName,
-			secretAccessKey,
-			secretAccessKeySecretName: profile.secretAccessKeySecretName
-		});
-		if (secretProblem) {
-			return {
-				ok: false,
-				result: { message: secretProblem, ok: false, reason: 'missing' }
-			};
-		}
-		const storage = await this.createStorage(profile, {
-			accessKeyId,
-			secretAccessKey
-		});
-		return { ok: true, profile, storage };
+		return {
+			ok: true,
+			...(uploaded.key === undefined ? {} : { key: uploaded.key }),
+			...(uploaded.url === undefined ? {} : { url: uploaded.url })
+		};
 	}
 }
 
@@ -433,37 +395,4 @@ export function classifyRefs(refs: readonly ImageRef[]): ClassifiedImageRefs {
 		(ref.isRemote ? remote : local).push(ref);
 	}
 	return { local, remote };
-}
-
-function actionErrorResult(error: unknown): ActionResult {
-	return {
-		message: error instanceof Error ? error.message : t('errors.imageActionFailed'),
-		ok: false,
-		reason: 'error'
-	};
-}
-
-function createTemplateContext(
-	imageTarget: string,
-	noteFilePathWithExtension: string
-): NameTemplateContext {
-	const fileName = imageFileName(imageTarget);
-	const extensionIndex = fileName.lastIndexOf('.');
-	return buildNameTemplateContext({
-		ext: extensionIndex > 0 ? fileName.slice(extensionIndex + 1) : '',
-		noteFilePath: noteFilePathWithExtension,
-		originalName: extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
-	});
-}
-
-function imageFileName(target: string): string {
-	const withoutQuery = target.split(/[?#]/u, 1)[0] ?? target;
-	const slashIndex = withoutQuery.lastIndexOf('/');
-	const encodedName = (slashIndex === -1 ? withoutQuery : withoutQuery.slice(slashIndex + 1))
-		|| 'image';
-	try {
-		return decodeURIComponent(encodedName);
-	} catch {
-		return encodedName;
-	}
 }

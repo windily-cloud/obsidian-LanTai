@@ -137,6 +137,26 @@ describe('UploadAction', () => {
 		expect(recordUpload).toHaveBeenCalledOnce();
 	});
 
+	it('skipRewrite uploads without changing the note', async () => {
+		const note = new FakeNoteContent('![[photo.png]]');
+		const storage = new FakeObjectStorage({ publicBaseUrl: 'https://cdn.example.com' });
+		const vault = new FakeVaultBinary({ 'Journal/photo.png': new Uint8Array([1, 2, 3]) });
+		const result = await createAction().execute(baseInput({
+			note,
+			ref: ref('![[photo.png]]'),
+			skipRewrite: true,
+			storage,
+			vault
+		}));
+		expect(result).toMatchObject({
+			key: 'images/photo.png',
+			ok: true,
+			url: 'https://cdn.example.com/images/photo.png'
+		});
+		expect(note.getContent()).toBe('![[photo.png]]');
+		expect(storage.uploadedKeys).toContain('images/photo.png');
+	});
+
 	it('rewrites the link only in linkOnly mode', async () => {
 		const note = new FakeNoteContent('![[photo.png|100]]');
 		const storage = new FakeObjectStorage({

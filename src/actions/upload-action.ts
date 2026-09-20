@@ -12,12 +12,16 @@ import type { ActionResult } from './action-result.ts';
 import { t } from '../i18n/index.ts';
 import { probeObjectExists } from '../storage/probe-object-exists.ts';
 
-export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
+export interface KnownUpload {
+	readonly key: string;
+	readonly url: string;
+}
 
-interface UploadActionInput {
+export interface UploadActionInput {
 	ctx: NameTemplateContext;
 	deleteSourceAfterUpload: boolean;
 	hasRemainingReference(): Promise<boolean>;
+	knownUpload?: KnownUpload;
 	linkStyle: LinkStyle;
 	localPath: string;
 	note: NoteContent;
@@ -26,10 +30,14 @@ interface UploadActionInput {
 	profileId: string;
 	recordUpload(entry: UploadHistoryEntry): Promise<void>;
 	ref: ImageRef;
+	/** 只上传/解析 URL，不改写笔记。供迁移在改写前把真实 key 落盘。 */
+	skipRewrite?: boolean;
 	storage: ObjectStorage;
 	vault: VaultBinary;
 	writeMode: UploadWriteMode;
 }
+
+export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
 
 export class UploadAction {
 	public constructor(
@@ -38,19 +46,49 @@ export class UploadAction {
 	) {}
 
 	public async execute(input: UploadActionInput): Promise<ActionResult> {
-		if (input.note.getContent().slice(input.ref.start, input.ref.end) !== input.ref.source) {
+		if (
+			input.skipRewrite !== true
+			&& input.note.getContent().slice(input.ref.start, input.ref.end) !== input.ref.source
+		) {
 			return { message: t('errors.linkChangedBeforeUpload'), ok: false, reason: 'conflict' };
 		}
-		const objectKey = this.pathResolver.resolveObjectKey({
-			ctx: input.ctx,
-			template: input.objectKeyTemplate
-		});
 
-		// 服务端生成对象键的存储（lantai）无法预测键，存在性探测既无意义也不会命中。
-		if (input.writeMode === 'upload' && input.storage.clientKeyed !== false) {
-			if ((await probeObjectExists(input.storage, objectKey)) === true) {
-				return { ok: false, reason: 'conflict' };
+		let didUpload = false;
+		let publicUrl: string;
+		let uploadedKey: string;
+		if (input.knownUpload) {
+			publicUrl = input.knownUpload.url;
+			uploadedKey = input.knownUpload.key;
+		} else {
+			const objectKey = this.pathResolver.resolveObjectKey({
+				ctx: input.ctx,
+				template: input.objectKeyTemplate
+			});
+
+			// 服务端生成对象键的存储（lantai）无法预测键，存在性探测既无意义也不会命中。
+			if (input.writeMode === 'upload' && input.storage.clientKeyed !== false) {
+				if ((await probeObjectExists(input.storage, objectKey)) === true) {
+					return { ok: false, reason: 'conflict' };
+				}
 			}
+
+			if (input.writeMode === 'linkOnly') {
+				publicUrl = await input.storage.buildPublicUrl(objectKey);
+				uploadedKey = objectKey;
+			} else {
+				const bytes = await input.vault.readBinary(input.localPath);
+				const uploaded = await input.storage.upload({ bytes, objectKey });
+				publicUrl = uploaded.url;
+				uploadedKey = uploaded.key;
+				didUpload = true;
+			}
+		}
+
+		if (input.skipRewrite === true) {
+			if (didUpload) {
+				await recordUploadQuietly(input, uploadedKey, publicUrl);
+			}
+			return { key: uploadedKey, ok: true, url: publicUrl };
 		}
 
 		// 删源只认 vault 路径。必须在改写链接前算剩余引用并排除当前这一处，
@@ -59,17 +97,6 @@ export class UploadAction {
 			? await input.hasRemainingReference()
 			: true;
 
-		// 链接与历史记录一律使用存储返回的权威 key / url：服务端可能重写扩展名。
-		let publicUrl: string;
-		let uploadedKey = objectKey;
-		if (input.writeMode === 'linkOnly') {
-			publicUrl = await input.storage.buildPublicUrl(objectKey);
-		} else {
-			const bytes = await input.vault.readBinary(input.localPath);
-			const uploaded = await input.storage.upload({ bytes, objectKey });
-			publicUrl = uploaded.url;
-			uploadedKey = uploaded.key;
-		}
 		const applied = await input.note.applyEdit({
 			end: input.ref.end,
 			expected: input.ref.source,
@@ -92,19 +119,27 @@ export class UploadAction {
 			await input.vault.trash(input.localPath);
 		}
 
-		if (input.writeMode !== 'linkOnly') {
-			try {
-				await input.recordUpload({
-					key: uploadedKey,
-					profileId: input.profileId,
-					timestamp: Date.now(),
-					url: publicUrl
-				});
-			} catch {
-				// History persistence must not affect the upload result.
-			}
+		if (didUpload) {
+			await recordUploadQuietly(input, uploadedKey, publicUrl);
 		}
 
-		return { ok: true };
+		return { key: uploadedKey, ok: true, url: publicUrl };
+	}
+}
+
+async function recordUploadQuietly(
+	input: UploadActionInput,
+	key: string,
+	url: string
+): Promise<void> {
+	try {
+		await input.recordUpload({
+			key,
+			profileId: input.profileId,
+			timestamp: Date.now(),
+			url
+		});
+	} catch {
+		// History persistence must not affect the upload result.
 	}
 }

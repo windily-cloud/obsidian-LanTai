@@ -10,6 +10,7 @@ import type {
 } from '../object-storage.ts';
 
 interface FakeObjectStorageConstructorParams {
+	readonly clientKeyed?: boolean;
 	readonly existing?: string[];
 	readonly existsError?: Error;
 	readonly listError?: Error;
@@ -17,6 +18,7 @@ interface FakeObjectStorageConstructorParams {
 	readonly publicBaseUrl: string;
 	/** 模拟服务端生成键（兰台雪花 key）：upload 回此值而不是入参 objectKey。 */
 	readonly uploadedObject?: FakeUploadedObject;
+	readonly uploadErrors?: Error[];
 }
 
 interface FakeUploadedObject {
@@ -26,6 +28,7 @@ interface FakeUploadedObject {
 
 /** Test double for ObjectStorage (+ optional browser methods for connection tests). */
 export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
+	public readonly clientKeyed?: boolean;
 	/** Exposed for unit tests. */
 	public readonly deletedKeys: string[] = [];
 	/** Exposed for unit tests. */
@@ -36,13 +39,18 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	private readonly objectBytes: Map<string, Uint8Array>;
 	private readonly publicBaseUrl: string;
 	private readonly uploadedObject: FakeUploadedObject | undefined;
+	private readonly uploadErrors: Error[];
 
 	public constructor(params: FakeObjectStorageConstructorParams) {
+		if (params.clientKeyed !== undefined) {
+			this.clientKeyed = params.clientKeyed;
+		}
 		this.publicBaseUrl = params.publicBaseUrl.replace(/\/+$/, '');
 		this.existing = new Set(params.existing ?? []);
 		this.existsError = params.existsError;
 		this.listError = params.listError;
 		this.objectBytes = new Map(Object.entries(params.objectBytes ?? {}));
+		this.uploadErrors = [...(params.uploadErrors ?? [])];
 		this.uploadedObject = params.uploadedObject;
 		for (const key of this.objectBytes.keys()) {
 			this.existing.add(key);
@@ -114,6 +122,10 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	}
 
 	public async upload(input: ObjectStorageUploadInput): Promise<ObjectStorageUploadResult> {
+		const nextError = this.uploadErrors.shift();
+		if (nextError) {
+			return Promise.reject(nextError);
+		}
 		const key = this.uploadedObject?.key ?? input.objectKey;
 		const url = this.uploadedObject?.url ?? await this.buildPublicUrl(key);
 		this.uploadedKeys.push(input.objectKey);
