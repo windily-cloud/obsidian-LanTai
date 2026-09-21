@@ -11,7 +11,7 @@ import type {
 
 import { probeObjectExists } from './probe-object-exists.ts';
 
-export type ResolveBrowserStorage = (profileId: string) => Promise<ObjectStorageBrowser>;
+type ResolveBrowserStorage = (profileId: string) => Promise<ObjectStorageBrowser>;
 
 export class RecentUploadsSource implements GalleryDataSource {
 	public readonly kind = 'recent' as const;

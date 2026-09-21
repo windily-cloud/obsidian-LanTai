@@ -1,7 +1,5 @@
 import { t } from '../i18n/index.ts';
 
-export type ParseMigrationFoldersResult = MigrationFoldersFailure | MigrationFoldersSuccess;
-
 interface MigrationFoldersFailure {
 	readonly message: string;
 	readonly ok: false;
@@ -11,6 +9,8 @@ interface MigrationFoldersSuccess {
 	readonly folders: string[];
 	readonly ok: true;
 }
+
+type ParseMigrationFoldersResult = MigrationFoldersFailure | MigrationFoldersSuccess;
 
 const OBSIDIAN_CONFIG_DIR_NAME = '.obsidian';
 
@@ -69,6 +69,7 @@ export function isAllFolders(path: string): boolean {
 	return path === MIGRATION_ALL_FOLDERS || normalizeVaultPath(path) === '';
 }
 
+/** Exposed for unit tests. */
 export function isNoteInSelectedFolders(notePath: string, folders: readonly string[]): boolean {
 	const note = normalizeVaultPath(notePath);
 	if (note === '' || isObsidianPath(note)) {
@@ -90,10 +91,6 @@ export function isObsidianPath(path: string): boolean {
 
 export function migrationFolderLabel(path: string): string {
 	return isAllFolders(path) ? t('migration.allFolders') : path;
-}
-
-export function normalizeVaultPath(path: string): string {
-	return path.replaceAll('\\', '/').replace(/\/+/gu, '/').replace(/^\/+/u, '').replace(/\/+$/u, '');
 }
 
 export function resolveMigrationFolders(folders: readonly string[]): ParseMigrationFoldersResult {
@@ -138,4 +135,8 @@ function isSkippedFolder(path: string, configDir: string): boolean {
 	const config = normalizeVaultPath(configDir);
 	return isObsidianPath(normalized)
 		|| (config !== '' && (normalized === config || normalized.startsWith(`${config}/`)));
+}
+
+function normalizeVaultPath(path: string): string {
+	return path.replaceAll('\\', '/').replace(/\/+/gu, '/').replace(/^\/+/u, '').replace(/\/+$/u, '');
 }

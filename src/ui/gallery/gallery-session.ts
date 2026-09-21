@@ -5,14 +5,13 @@ import type {
 } from '../../storage/object-storage.ts';
 
 export const GALLERY_SESSION_KEY = 'lantai-gallery-session';
+/** Exposed for unit tests. */
 export const GALLERY_SESSION_VERSION = 1;
 export const GALLERY_PANEL_WIDTH_DEFAULT = 380;
 export const GALLERY_PANEL_WIDTH_MAX = 620;
 export const GALLERY_PANEL_WIDTH_MIN = 300;
 export const GALLERY_SESSION_DEBOUNCE_MS = 250;
 const DATE_PART_PAD = 2;
-
-export type GalleryLayout = 'cards' | 'masonry';
 
 export interface GallerySession {
 	readonly layout: GalleryLayout;
@@ -26,6 +25,9 @@ export interface GallerySession {
 	readonly version: typeof GALLERY_SESSION_VERSION;
 }
 
+type GalleryLayout = 'cards' | 'masonry';
+
+/** Exposed for unit tests. */
 export const DEFAULT_GALLERY_SESSION: GallerySession = {
 	layout: 'cards',
 	panelOpen: false,
@@ -38,7 +40,7 @@ export const DEFAULT_GALLERY_SESSION: GallerySession = {
 	version: GALLERY_SESSION_VERSION
 };
 
-export interface GallerySessionLoadResult {
+interface GallerySessionLoadResult {
 	readonly reset: boolean;
 	readonly session: GallerySession;
 }

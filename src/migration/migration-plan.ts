@@ -1,5 +1,6 @@
 import type { StorageProvider } from '../settings/sections/s3/storage-profile.ts';
 
+/** Exposed for unit tests. */
 export const MIGRATION_PLAN_VERSION = 1;
 
 export interface MigrationItem {
@@ -11,8 +12,6 @@ export interface MigrationItem {
 	uploadedKey?: string;
 	uploadedUrl?: string;
 }
-
-export type MigrationItemStatus = 'done' | 'failed' | 'pending' | 'uploaded';
 
 export interface MigrationPlan {
 	createdAt: number;
@@ -28,8 +27,6 @@ export interface MigrationPlan {
 	version: number;
 }
 
-export type MigrationPlanStatus = 'completed' | 'paused' | 'running' | 'scanned';
-
 export interface MigrationRef {
 	error?: string;
 	notePath: string;
@@ -37,9 +34,18 @@ export interface MigrationRef {
 	status: MigrationRefStatus;
 }
 
-export type MigrationRefStatus = 'done' | 'failed' | 'pending';
+interface InvalidParsedMigrationPlan {
+	readonly ok: false;
+	readonly reason: 'invalid';
+}
 
-export interface MigrationStats {
+type MigrationItemStatus = 'done' | 'failed' | 'pending' | 'uploaded';
+
+type MigrationPlanStatus = 'completed' | 'paused' | 'running' | 'scanned';
+
+type MigrationRefStatus = 'done' | 'failed' | 'pending';
+
+interface MigrationStats {
 	doneCount: number;
 	failedCount: number;
 	noteCount: number;
@@ -48,12 +54,7 @@ export interface MigrationStats {
 	uniqueFiles: number;
 }
 
-export type ParsedMigrationPlan = InvalidParsedMigrationPlan | ValidParsedMigrationPlan;
-
-interface InvalidParsedMigrationPlan {
-	readonly ok: false;
-	readonly reason: 'invalid';
-}
+type ParsedMigrationPlan = InvalidParsedMigrationPlan | ValidParsedMigrationPlan;
 
 interface ValidParsedMigrationPlan {
 	readonly ok: true;
@@ -71,10 +72,6 @@ const PROVIDERS: readonly StorageProvider[] = [
 
 export function migrationAllDone(plan: MigrationPlan): boolean {
 	return plan.items.length > 0 && plan.items.every((item) => item.status === 'done');
-}
-
-export function migrationHasWorkRemaining(plan: MigrationPlan): boolean {
-	return plan.items.some((item) => item.status !== 'done');
 }
 
 export function parseMigrationPlan(raw: unknown): ParsedMigrationPlan {

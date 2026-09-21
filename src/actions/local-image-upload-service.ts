@@ -22,29 +22,6 @@ export interface LocalImageRewriteTarget {
 	readonly source: string;
 }
 
-export interface UniqueFileUploadInput {
-	readonly deleteSourceAfterUpload: boolean;
-	hasRemainingReference(): Promise<boolean>;
-	readonly knownUpload?: KnownUpload;
-	readonly linkStyle: LinkStyle;
-	readonly localPath: string;
-	readonly objectKeyTemplate: string;
-	onUploaded?(info: KnownUpload): Promise<void>;
-	readonly profileId: string;
-	recordUpload(entry: UploadHistoryEntry): Promise<void>;
-	readonly storage: ObjectStorage;
-	readonly targets: readonly LocalImageRewriteTarget[];
-	readonly vault: VaultBinary;
-	readonly writeMode: UploadWriteMode;
-}
-
-export interface UniqueFileUploadResult {
-	readonly key?: string;
-	readonly ok: boolean;
-	readonly results: ActionResult[];
-	readonly url?: string;
-}
-
 interface EnsureUploadedFailure {
 	readonly ok: false;
 	readonly result: ActionResult;
@@ -61,6 +38,29 @@ interface LocalImageUploadServiceConstructorParams {
 	readonly parser: ImageLinkParser;
 	resolveVaultPath(target: string, noteFilePath: string): null | string;
 	readonly uploadAction: UploadAction;
+}
+
+interface UniqueFileUploadInput {
+	readonly deleteSourceAfterUpload: boolean;
+	hasRemainingReference(): Promise<boolean>;
+	readonly knownUpload?: KnownUpload;
+	readonly linkStyle: LinkStyle;
+	readonly localPath: string;
+	readonly objectKeyTemplate: string;
+	onUploaded?(info: KnownUpload): Promise<void>;
+	readonly profileId: string;
+	recordUpload(entry: UploadHistoryEntry): Promise<void>;
+	readonly storage: ObjectStorage;
+	readonly targets: readonly LocalImageRewriteTarget[];
+	readonly vault: VaultBinary;
+	readonly writeMode: UploadWriteMode;
+}
+
+interface UniqueFileUploadResult {
+	readonly key?: string;
+	readonly ok: boolean;
+	readonly results: ActionResult[];
+	readonly url?: string;
 }
 
 /**

@@ -1,4 +1,4 @@
-export interface LanTaiSearchQuery {
+interface LanTaiSearchQuery {
 	readonly keyword: string;
 	readonly tag: string;
 }

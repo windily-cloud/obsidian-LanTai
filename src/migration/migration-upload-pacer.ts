@@ -6,14 +6,15 @@ import { StorageRequestError } from '../storage/storage-request-error.ts';
  * AWS throttling guidance uses a 1s base delay and exponential backoff with jitter.
  */
 export const MIGRATION_MIN_INTERVAL_MS = 100;
+/** Exposed for unit tests. */
 export const MIGRATION_THROTTLE_BASE_MS = 1_000;
-export const MIGRATION_THROTTLE_MAX_MS = 32_000;
+const MIGRATION_THROTTLE_MAX_MS = 32_000;
 export const MIGRATION_THROTTLE_MAX_RETRIES = 5;
 
 const HTTP_SLOW_DOWN = 503;
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-export interface MigrationUploadPacerConstructorOptions {
+interface MigrationUploadPacerConstructorOptions {
 	readonly intervalMs?: number;
 	now?(): number;
 	random?(): number;
@@ -63,12 +64,6 @@ export class MigrationUploadPacer {
 	}
 }
 
-export function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => {
-		window.setTimeout(resolve, ms);
-	});
-}
-
 export function isThrottledStorageError(error: unknown): boolean {
 	if (error instanceof StorageRequestError) {
 		return error.status === HTTP_TOO_MANY_REQUESTS || error.status === HTTP_SLOW_DOWN;
@@ -84,4 +79,10 @@ export function throttleRetryAfterMs(error: unknown): number | undefined {
 		return error.retryAfterMs;
 	}
 	return undefined;
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		window.setTimeout(resolve, ms);
+	});
 }

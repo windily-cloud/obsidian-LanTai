@@ -31,7 +31,7 @@ import {
 } from '../../migration/migration-url-pattern.ts';
 import { confirmAction } from './confirm-modal.ts';
 
-export interface OpenMigrationModalParams {
+interface OpenMigrationModalParams {
 	readonly app: App;
 	getActiveProfile(): null | StorageProfile;
 	openPlanFile(): Promise<void>;

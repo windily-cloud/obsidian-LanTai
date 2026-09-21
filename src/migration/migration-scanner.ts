@@ -19,18 +19,18 @@ export interface MigrationScanVault {
 	resolveLocalPath(target: string, noteFilePath: string): null | string;
 }
 
-export interface ScanMigrationInput {
+interface ScanGroup {
+	bytes: number;
+	found: boolean;
+	refs: MigrationRef[];
+}
+
+interface ScanMigrationInput {
 	readonly deleteSourceAfterUpload: boolean;
 	readonly folders: readonly string[];
 	parse(content: string): readonly ImageRef[];
 	readonly profile: StorageProfile;
 	readonly vault: MigrationScanVault;
-}
-
-interface ScanGroup {
-	bytes: number;
-	found: boolean;
-	refs: MigrationRef[];
 }
 
 export async function scanMigrationPlan(input: ScanMigrationInput): Promise<MigrationPlan> {

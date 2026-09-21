@@ -34,18 +34,6 @@ import {
 	throttleRetryAfterMs
 } from './migration-upload-pacer.ts';
 
-export interface MigrationRunnerProgress {
-	readonly currentPath: string;
-	readonly done: number;
-	readonly total: number;
-}
-
-export interface RunMigrationInput {
-	onProgress?(progress: MigrationRunnerProgress): void;
-	readonly plan: MigrationPlan;
-	shouldPause(): boolean;
-}
-
 interface MigrationRunnerConstructorParams {
 	hasLocalReference(localPath: string): Promise<boolean>;
 	openNote(notePath: string): Promise<NoteContent | null>;
@@ -57,6 +45,18 @@ interface MigrationRunnerConstructorParams {
 	readonly store: MigrationPlanStore;
 	readonly upload: LocalImageUploadService;
 	readonly vault: VaultBinary;
+}
+
+interface MigrationRunnerProgress {
+	readonly currentPath: string;
+	readonly done: number;
+	readonly total: number;
+}
+
+interface RunMigrationInput {
+	onProgress?(progress: MigrationRunnerProgress): void;
+	readonly plan: MigrationPlan;
+	shouldPause(): boolean;
 }
 
 interface RunnableMigrationRefs {

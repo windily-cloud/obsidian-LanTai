@@ -18,7 +18,9 @@ export interface KnownUpload {
 	readonly url: string;
 }
 
-export interface UploadActionInput {
+export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
+
+interface UploadActionInput {
 	ctx: NameTemplateContext;
 	deleteSourceAfterUpload: boolean;
 	hasRemainingReference(): Promise<boolean>;
@@ -37,8 +39,6 @@ export interface UploadActionInput {
 	vault: VaultBinary;
 	writeMode: UploadWriteMode;
 }
-
-export type UploadWriteMode = 'linkOnly' | 'overwrite' | 'upload';
 
 export class UploadAction {
 	public constructor(

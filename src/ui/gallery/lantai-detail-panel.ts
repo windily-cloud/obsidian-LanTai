@@ -16,17 +16,17 @@ import { formatBytes } from '../../lantai/lantai-account.ts';
 import { isManageableSource } from '../../storage/gallery-source.ts';
 import { formatGalleryDate } from './gallery-session.ts';
 
-export interface GalleryDetailPanelConstructorOptions {
+interface GalleryDetailInfoRow {
+	readonly name: string;
+	readonly value: string;
+}
+
+interface GalleryDetailPanelConstructorOptions {
 	loadReferences(image: GalleryImage): Promise<RemoteImageReference[]>;
 	onClose(): void;
 	onDelete(image: GalleryImage): void;
 	onOpenNote(path: string): void;
 	onUpdated(image: GalleryImage): void;
-}
-
-interface GalleryDetailInfoRow {
-	readonly name: string;
-	readonly value: string;
 }
 
 /**

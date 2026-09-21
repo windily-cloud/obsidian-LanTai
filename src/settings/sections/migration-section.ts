@@ -25,6 +25,7 @@ export function displayMigrationSection(
 		);
 }
 
+/** Exposed for unit tests. */
 export function shouldShowMigrationSettings(isMobile: boolean = Platform.isMobile): boolean {
 	return !isMobile;
 }

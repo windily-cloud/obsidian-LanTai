@@ -22,8 +22,6 @@ export interface LanTaiAccountSummary {
 	usedBytes: number;
 }
 
-export type LanTaiFailureKind = 'invalidKey' | 'unreachable';
-
 export type LanTaiImageFormat = (typeof LANTAI_IMAGE_FORMATS)[number];
 
 export interface LanTaiImageSettings {
@@ -31,8 +29,11 @@ export interface LanTaiImageSettings {
 	quality: number;
 }
 
+type LanTaiFailureKind = 'invalidKey' | 'unreachable';
+
 /** 账号接口失败：区分「key 被拒」与「连不上/响应异常」，以便设置页给出可执行的提示。 */
 export class LanTaiAccountError extends Error {
+	/** Exposed for unit tests. */
 	public readonly kind: LanTaiFailureKind;
 
 	public constructor(kind: LanTaiFailureKind, message: string) {

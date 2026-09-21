@@ -49,12 +49,6 @@ export interface ObjectStorageFile {
 	url?: string;
 }
 
-export interface ObjectStorageImageMetadata {
-	readonly format: string;
-	readonly height: number;
-	readonly width: number;
-}
-
 export interface ObjectStorageListResult {
 	readonly cursor?: string;
 	readonly items: ObjectStorageFile[];
@@ -72,6 +66,12 @@ export interface ObjectStorageUploadInput {
 export interface ObjectStorageUploadResult {
 	readonly key: string;
 	readonly url: string;
+}
+
+interface ObjectStorageImageMetadata {
+	readonly format: string;
+	readonly height: number;
+	readonly width: number;
 }
 
 interface ObjectStorageListOptions {

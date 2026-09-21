@@ -6,6 +6,7 @@ export interface ExcludeLocalImageRef {
 	readonly start: number;
 }
 
+/** Exposed for unit tests. */
 export interface HasLocalImageReferenceInput {
 	readonly exclude?: ExcludeLocalImageRef;
 	readonly localPath: string;

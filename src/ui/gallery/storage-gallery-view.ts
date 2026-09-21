@@ -1447,6 +1447,7 @@ export function getObjectFileName(objectKey: string): string {
 	return objectKey.split('/').at(-1) ?? objectKey;
 }
 
+/** Exposed for unit tests. */
 export function parseSortOption(optionId: string): GallerySortOption {
 	if (optionId === 'oldest') {
 		return { order: 'asc', sort: 'createdAt' };
@@ -1471,6 +1472,7 @@ export function selectGalleryProfile(
 	return profiles.find((profile) => profile.id === galleryProfileId);
 }
 
+/** Exposed for unit tests. */
 export function sortOptionId(sort: GallerySortKey, order: GallerySortOrder): string {
 	if (sort === 'createdAt' && order === 'asc') {
 		return 'oldest';
