@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 0.0.8
+
+- fix: 收紧仅文件内使用的 export，通过 find-overexposed
+- fix: 画廊展示并保存兰台原始文件名
+- feat: 优化画廊视图为可调详情侧栏
+- feat: 兰台画廊支持排序与搜索分页
+- feat: 列出仍引用本地图片的笔记路径
+- feat: 上传时把原文件名交给存储
+- feat: 桌面端本地图片迁移向导
+- refactor: 抽出上传会话与按文件去重的本地上传服务
+- fix: 存储错误解析 Retry-After 并保留 HTTP 状态
+- fix: 解析 wiki 链接时同时尝试原始与解码路径
+- fix: 解析图片链接时跳过代码块、公式与脚注
+- chore: 统一 JSON 为 tab 缩进
+- feat: 接入兰台存储源，作为图床与画廊数据源
+- fix: 将 0.0.7 的 minAppVersion 恢复为 1.11.4
+
 ## 0.0.7
 
 - fix: 收紧仅文件内使用的 export，通过 find-overexposed
