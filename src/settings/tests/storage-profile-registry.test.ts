@@ -6,7 +6,6 @@ import {
 
 import type { StorageProfile } from '../sections/s3/storage-profile.ts';
 
-import { t } from '../../i18n/index.ts';
 import { StorageProfileRegistry } from '../helpers/storage-profile-registry.ts';
 import { PluginSettings } from '../plugin-settings.ts';
 
@@ -44,27 +43,22 @@ describe('StorageProfileRegistry', () => {
 		}).toThrow(/publicBaseUrl/i);
 	});
 
-	it('ensureLanTai prepends a lantai profile and activates it when none is active', () => {
+	it('starts with no profiles and no active profile', () => {
 		const settings = new PluginSettings();
 		const reg = new StorageProfileRegistry(settings);
-		reg.add(makeProfile({ id: 'oss', name: '阿里云' }));
-		settings.activeProfileId = null;
-
-		expect(reg.ensureLanTai()).toBe(true);
-		expect(settings.profiles[0]?.provider).toBe('lantai');
-		expect(settings.profiles[0]?.name).toBe(t('settings.providerLantai'));
-		expect(settings.activeProfileId).toBe(settings.profiles[0]?.id);
-		expect(reg.list()[0]?.provider).toBe('lantai');
+		expect(reg.list()).toEqual([]);
+		expect(reg.getActive()).toBeNull();
 	});
 
-	it('ensureLanTai does not steal an existing active profile', () => {
+	it('removes a lantai profile like any other', () => {
 		const settings = new PluginSettings();
 		const reg = new StorageProfileRegistry(settings);
+		reg.add(makeProfile({ id: 'lantai', name: '兰台', provider: 'lantai' }));
 		reg.add(makeProfile({ id: 'oss', name: '阿里云' }));
-		reg.setActive('oss');
+		reg.setActive('lantai');
 
-		expect(reg.ensureLanTai()).toBe(true);
-		expect(settings.activeProfileId).toBe('oss');
-		expect(reg.ensureLanTai()).toBe(false);
+		reg.remove('lantai');
+		expect(reg.list().map((profile) => profile.id)).toEqual(['oss']);
+		expect(reg.getActive()?.id).toBe('oss');
 	});
 });

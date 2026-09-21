@@ -82,9 +82,6 @@ export class Plugin extends PluginBase {
 		delete (this.settings as LegacySettingsFields).galleryUploadKeyTemplate;
 		delete (this.settings as LegacySettingsFields).gallerySource;
 		delete (this.settings as LegacySettingsFields).galleryProfileId;
-		if (new StorageProfileRegistry(this.settings).ensureLanTai()) {
-			await this.saveData(this.settings);
-		}
 
 		const parser = new ImageLinkParser();
 		const linkService = new ImageLinkService(parser, new ImageLinkFormatter());

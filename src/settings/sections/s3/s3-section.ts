@@ -49,9 +49,6 @@ interface ConnectionTestButton {
 }
 
 export function displayS3SectionBody(containerEl: HTMLElement, ctx: S3SectionContext): void {
-	if (ctx.registry.ensureLanTai()) {
-		ctx.persist();
-	}
 	const profiles = ctx.registry.list();
 	new Setting(containerEl)
 		.setName(t('settings.s3Profiles'))
@@ -235,18 +232,16 @@ function displayProfileBody(
 			});
 		});
 	}
-	if (profile.provider !== 'lantai') {
-		actions.addButton((button) => {
-			button
-				.setButtonText(t('settings.delete'))
-				.setWarning()
-				.onClick(() => {
-					confirmDeleteProfile(ctx, profile).catch((error: unknown) => {
-						console.error('Failed to delete storage profile', error);
-					});
+	actions.addButton((button) => {
+		button
+			.setButtonText(t('settings.delete'))
+			.setWarning()
+			.onClick(() => {
+				confirmDeleteProfile(ctx, profile).catch((error: unknown) => {
+					console.error('Failed to delete storage profile', error);
 				});
-		});
-	}
+			});
+	});
 	actions.addButton((button) => {
 		button.setButtonText(t('settings.save'));
 		if (!(draft.provider === 'lantai' && !isActive)) {

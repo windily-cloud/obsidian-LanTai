@@ -1,9 +1,6 @@
 import type { PluginSettings } from '../plugin-settings.ts';
 import type { StorageProfile } from '../sections/s3/storage-profile.ts';
 
-import { t } from '../../i18n/index.ts';
-import { LANTAI_PROFILE_ID } from '../sections/s3/storage-profile.ts';
-
 export class StorageProfileRegistry {
 	public constructor(private readonly settings: PluginSettings) {}
 
@@ -31,27 +28,6 @@ export class StorageProfileRegistry {
 		if (!profile.secretAccessKeySecretName.trim()) {
 			throw new Error('secretAccessKeySecretName is required');
 		}
-	}
-
-	/**
-	 * 保证库内有一张兰台配置档并排在最前。
-	 * 尚无当前启用配置档时，默认启用兰台（引导优先选择）。
-	 * 已有其它启用档时不抢 active。
-	 */
-	public ensureLanTai(): boolean {
-		let changed = false;
-		if (!this.settings.profiles.some((profile) => profile.provider === 'lantai')) {
-			this.settings.profiles.unshift(createLanTaiProfile(this.settings.profiles));
-			changed = true;
-		}
-		if (!this.settings.activeProfileId) {
-			const lantai = this.settings.profiles.find((profile) => profile.provider === 'lantai');
-			if (lantai) {
-				this.settings.activeProfileId = lantai.id;
-				changed = true;
-			}
-		}
-		return changed;
 	}
 
 	/** Exposed for unit tests. */
@@ -85,22 +61,6 @@ export class StorageProfileRegistry {
 		}
 		this.settings.activeProfileId = id;
 	}
-}
-
-function createLanTaiProfile(existing: readonly StorageProfile[]): StorageProfile {
-	const taken = new Set(existing.map((profile) => profile.id));
-	const id = taken.has(LANTAI_PROFILE_ID) ? `lantai-${String(Date.now())}` : LANTAI_PROFILE_ID;
-	return {
-		accessKeyIdSecretName: '',
-		bucket: '',
-		id,
-		name: t('settings.providerLantai'),
-		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
-		objectKeyTemplate: 'images/${originalName}.${ext}',
-		provider: 'lantai',
-		publicBaseUrl: '',
-		secretAccessKeySecretName: ''
-	};
 }
 
 function orderLanTaiFirst(profiles: readonly StorageProfile[]): StorageProfile[] {
