@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.9
+
+- chore: 统一 JSON 为 tab 缩进
+- fix: 设置不再默认启用兰台提供商，改为先新建
+
 ## 0.0.8
 
 - fix: 收紧仅文件内使用的 export，通过 find-overexposed
