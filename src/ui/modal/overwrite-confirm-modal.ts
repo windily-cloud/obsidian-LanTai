@@ -5,7 +5,7 @@ import {
 	Setting
 } from 'obsidian';
 
-import { t } from '../i18n/index.ts';
+import { t } from '../../i18n/index.ts';
 
 interface OverwriteConfirmModalConstructorParams extends OverwriteConfirmModalParams {
 	onDecide(overwrite: boolean): void;

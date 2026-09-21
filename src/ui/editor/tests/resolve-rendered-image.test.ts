@@ -4,7 +4,7 @@ import {
 	it
 } from 'vitest';
 
-import { ImageLinkParser } from '../link/image-link-parser.ts';
+import { ImageLinkParser } from '../../../link/image-link-parser.ts';
 import {
 	findRenderedImageRef,
 	identityMatchesRef,
@@ -13,7 +13,7 @@ import {
 	selectPreciseImageOffset,
 	toImageTarget,
 	visibleImageMenuGroups
-} from './resolve-rendered-image.ts';
+} from '../resolve-rendered-image.ts';
 
 describe('readRenderedImageIdentity', () => {
 	it('prefers data-path as a local identity', () => {
@@ -578,7 +578,9 @@ describe('visibleImageMenuGroups', () => {
 		expect(groups[2]).toEqual(['replace']);
 		expect(groups.some((group) => group.includes('localize'))).toBe(false);
 		expect(groups.find((group) => group.includes('layout'))).toEqual(['copyPath', 'layout']);
-		expect(groups.at(-1)).toEqual(['remove', 'deleteFile']);
+		expect(groups.at(-2)).toEqual(['remove']);
+		expect(groups.at(-1)).toEqual(['deleteFile']);
+		expect(groups.slice(0, -1).flat()).not.toContain('deleteFile');
 	});
 
 	it('puts upload first on mobile and includes native-parity actions', () => {
@@ -609,7 +611,8 @@ describe('visibleImageMenuGroups', () => {
 			['rename', 'move', 'star'],
 			['share'],
 			['copyPath', 'layout'],
-			['remove', 'deleteFile']
+			['remove'],
+			['deleteFile']
 		]);
 	});
 });

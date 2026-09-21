@@ -10,17 +10,17 @@ import type {
 import { Notice } from 'obsidian';
 import { noopAsync } from 'obsidian-dev-utils/function';
 
-import type { ActionResult } from '../actions/action-result.ts';
+import type { ActionResult } from '../../actions/action-result.ts';
 import type {
 	ImageActionContext,
 	ImageActionFacade
-} from '../actions/image-action-facade.ts';
-import type { ImageLinkService } from '../link/image-link-service.ts';
-import type { ImageRef } from '../link/image-ref.ts';
+} from '../../actions/image-action-facade.ts';
+import type { ImageLinkService } from '../../link/image-link-service.ts';
+import type { ImageRef } from '../../link/image-ref.ts';
 
-import { ObsidianNoteContent } from '../adapters/obsidian/note-content.obsidian.ts';
-import { t } from '../i18n/index.ts';
-import { formatActionError } from '../storage/storage-credential-guard.ts';
+import { ObsidianNoteContent } from '../../adapters/obsidian/note-content.obsidian.ts';
+import { t } from '../../i18n/index.ts';
+import { formatActionError } from '../../storage/storage-credential-guard.ts';
 
 interface CommandRegistrarConstructorParams {
 	readonly app: App;

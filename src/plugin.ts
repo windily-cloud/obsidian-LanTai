@@ -42,6 +42,7 @@ import { hasLocalImageReference } from './link/has-local-image-reference.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
 import { ImageLinkParser } from './link/image-link-parser.ts';
 import { ImageLinkService } from './link/image-link-service.ts';
+import { LocalImageReferenceFinder } from './link/local-image-reference-finder.ts';
 import { RemoteImageReferenceFinder } from './link/remote-image-reference-finder.ts';
 import { MigrationRunner } from './migration/migration-runner.ts';
 import { MigrationUploadPacer } from './migration/migration-upload-pacer.ts';
@@ -53,17 +54,22 @@ import {
 	PluginSettings,
 	PluginSettingsTab
 } from './settings/plugin-settings.ts';
-import { createGallerySource } from './storage/gallery-source-factory.ts';
+import {
+	createGallerySource,
+	resolveGalleryBrowserStorage
+} from './storage/gallery-source-factory.ts';
 import { createObjectStorageFactory } from './storage/object-storage-factory.ts';
 import { RequestUrlObjectStorageTransport } from './storage/request-url-object-storage-transport.ts';
-import { CommandRegistrar } from './ui/command-registrar.ts';
-import { pickAndUploadGalleryImages } from './ui/gallery-uploader.ts';
-import { ImageContextMenuController } from './ui/image-context-menu-controller.ts';
-import { openMigrationModal } from './ui/migration-modal.ts';
-import { confirmOverwriteImages } from './ui/overwrite-confirm-modal.ts';
-import { registerStorageGallery } from './ui/storage-gallery-registration.ts';
+import { CommandRegistrar } from './ui/editor/command-registrar.ts';
+import { ImageContextMenuController } from './ui/editor/image-context-menu-controller.ts';
+import { pickAndUploadGalleryImages } from './ui/gallery/gallery-uploader.ts';
+import { registerStorageGallery } from './ui/gallery/storage-gallery-registration.ts';
+import { openMigrationModal } from './ui/modal/migration-modal.ts';
+import { confirmOverwriteImages } from './ui/modal/overwrite-confirm-modal.ts';
 
 interface LegacySettingsFields {
+	galleryProfileId?: unknown;
+	gallerySource?: unknown;
 	galleryUploadKeyTemplate?: string;
 }
 
@@ -74,15 +80,8 @@ export class Plugin extends PluginBase {
 	protected override async onloadImpl(): Promise<void> {
 		this.settings = Object.assign(new PluginSettings(), await this.loadData());
 		delete (this.settings as LegacySettingsFields).galleryUploadKeyTemplate;
-		const gallerySource = this.settings.gallerySource as string;
-		if (
-			gallerySource !== 'recent'
-			&& gallerySource !== 'bucket'
-			&& gallerySource !== 'vault'
-			&& gallerySource !== 'lantai'
-		) {
-			this.settings.gallerySource = 'recent';
-		}
+		delete (this.settings as LegacySettingsFields).gallerySource;
+		delete (this.settings as LegacySettingsFields).galleryProfileId;
 		if (new StorageProfileRegistry(this.settings).ensureLanTai()) {
 			await this.saveData(this.settings);
 		}
@@ -313,12 +312,24 @@ export class Plugin extends PluginBase {
 		registerStorageGallery({
 			createGallerySource: (input): Promise<import('./storage/gallery-source.ts').GalleryDataSource> =>
 				createGallerySource({
+					...input,
 					history: uploadHistory,
+					resolveBrowserStorage: (profileId): Promise<import('./storage/object-storage.ts').ObjectStorageBrowser> =>
+						resolveGalleryBrowserStorage({
+							createStorage: createObjectStorage,
+							getSecret: (name): null | string => secretStore.getSecret(name),
+							profileId,
+							profiles: this.settings.profiles
+						}),
 					storageFactory: createObjectStorage,
-					vaultImages,
-					...input
+					vaultImages
 				}),
 			createUploadStorage: createObjectStorage,
+			findLocalReferences: new LocalImageReferenceFinder({
+				app: this.app,
+				parser,
+				resolvePath: (target, noteFilePath): null | string => vault.resolvePath(target, noteFilePath)
+			}),
 			findReferences: new RemoteImageReferenceFinder({ app: this.app, parser }),
 			getSecret: (name: string): null | string => secretStore.getSecret(name),
 			pickAndUpload: (request): void => {
@@ -334,7 +345,6 @@ export class Plugin extends PluginBase {
 				});
 			},
 			plugin: this,
-			saveSettings: async (): Promise<void> => this.saveData(this.settings),
 			settings: this.settings
 		});
 	}

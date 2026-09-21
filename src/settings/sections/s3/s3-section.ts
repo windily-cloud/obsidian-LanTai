@@ -25,7 +25,7 @@ import { t } from '../../../i18n/index.ts';
 import { createObjectStorageFactory } from '../../../storage/object-storage-factory.ts';
 import { RequestUrlObjectStorageTransport } from '../../../storage/request-url-object-storage-transport.ts';
 import { testStorageConnection } from '../../../storage/test-storage-connection.ts';
-import { confirmAction } from '../../../ui/confirm-modal.ts';
+import { confirmAction } from '../../../ui/modal/confirm-modal.ts';
 import {
 	attachTokenInfoButton,
 	previewContext

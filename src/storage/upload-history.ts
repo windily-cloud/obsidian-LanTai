@@ -11,6 +11,8 @@ export interface UploadHistoryStore {
 	append(entry: UploadHistoryEntry): Promise<void>;
 	/** Entries for the profile, newest first. */
 	list(profileId: string): UploadHistoryEntry[];
+	/** All profiles, newest first. */
+	listAll(): UploadHistoryEntry[];
 	/** Resolves once the initial persistence load has finished. */
 	ready(): Promise<void>;
 	removeByKey(profileId: string, key: string): Promise<void>;

@@ -1,17 +1,18 @@
 import type { Plugin } from 'obsidian';
 
-import type { RemoteImageReferenceFinder } from '../link/remote-image-reference-finder.ts';
-import type { PluginSettings } from '../settings/plugin-settings.ts';
-import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
+import type { LocalImageReferenceFinder } from '../../link/local-image-reference-finder.ts';
+import type { RemoteImageReferenceFinder } from '../../link/remote-image-reference-finder.ts';
+import type { PluginSettings } from '../../settings/plugin-settings.ts';
+import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
 import type {
 	CreateGallerySourceInput,
 	GalleryDataSource
-} from '../storage/gallery-source.ts';
-import type { ObjectStorage } from '../storage/object-storage.ts';
-import type { StorageSecrets } from '../storage/storage-secrets.ts';
+} from '../../storage/gallery-source.ts';
+import type { ObjectStorage } from '../../storage/object-storage.ts';
+import type { StorageSecrets } from '../../storage/storage-secrets.ts';
 import type { GalleryUploadRequest } from './gallery-uploader.ts';
 
-import { t } from '../i18n/index.ts';
+import { t } from '../../i18n/index.ts';
 import {
 	STORAGE_GALLERY_VIEW_TYPE,
 	StorageGalleryView
@@ -23,11 +24,11 @@ interface RegisterStorageGalleryParams {
 		profile: StorageProfile,
 		secrets: StorageSecrets
 	): Promise<ObjectStorage>;
+	readonly findLocalReferences: LocalImageReferenceFinder;
 	readonly findReferences: RemoteImageReferenceFinder;
 	getSecret(name: string): null | string;
 	pickAndUpload(params: GalleryUploadRequest): void;
 	readonly plugin: Plugin;
-	saveSettings(): Promise<void>;
 	readonly settings: PluginSettings;
 }
 
@@ -36,13 +37,13 @@ export function registerStorageGallery(params: RegisterStorageGalleryParams): vo
 		new StorageGalleryView({
 			createGallerySource: (input): Promise<GalleryDataSource> => params.createGallerySource(input),
 			createUploadStorage: (profile, secrets): Promise<ObjectStorage> => params.createUploadStorage(profile, secrets),
+			findLocalReferences: params.findLocalReferences,
 			findReferences: params.findReferences,
 			getSecret: (name): null | string => params.getSecret(name),
 			leaf,
 			pickAndUpload: (uploadParams): void => {
 				params.pickAndUpload(uploadParams);
 			},
-			saveSettings: (): Promise<void> => params.saveSettings(),
 			settings: params.settings
 		}));
 

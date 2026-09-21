@@ -10,17 +10,17 @@ import {
 	Platform
 } from 'obsidian';
 
-import type { ActionResult } from '../actions/action-result.ts';
+import type { ActionResult } from '../../actions/action-result.ts';
 import type {
 	ImageActionContext,
 	ImageActionFacade
-} from '../actions/image-action-facade.ts';
-import type { ImageFileActions } from '../actions/image-file-actions.ts';
-import type { ImageLinkService } from '../link/image-link-service.ts';
+} from '../../actions/image-action-facade.ts';
+import type { ImageFileActions } from '../../actions/image-file-actions.ts';
+import type { ImageLinkService } from '../../link/image-link-service.ts';
 import type {
 	ImageLayout,
 	ImageRef
-} from '../link/image-ref.ts';
+} from '../../link/image-ref.ts';
 import type {
 	ImageMenuItemKey,
 	ImageSourceRange,
@@ -29,15 +29,15 @@ import type {
 	RenderedImageIdentity
 } from './resolve-rendered-image.ts';
 
-import { ObsidianNoteContent } from '../adapters/obsidian/note-content.obsidian.ts';
-import { t } from '../i18n/index.ts';
-import { formatActionError } from '../storage/storage-credential-guard.ts';
-import { refreshRenderedImageSources } from './bust-rendered-image-src.ts';
+import { ObsidianNoteContent } from '../../adapters/obsidian/note-content.obsidian.ts';
+import { t } from '../../i18n/index.ts';
+import { formatActionError } from '../../storage/storage-credential-guard.ts';
 import {
 	LONG_PRESS_HOLD_MS,
 	LONG_PRESS_MAX_MOVE_PX,
 	LongPressGesture
-} from './long-press-gesture.ts';
+} from '../long-press-gesture.ts';
+import { refreshRenderedImageSources } from './bust-rendered-image-src.ts';
 import { resolveMobileImageContextMenu } from './mobile-image-context-menu.ts';
 import {
 	findRenderedImageRef,
@@ -177,6 +177,7 @@ export class ImageContextMenuController {
 					item
 						.setTitle(t('menu.deleteImage'))
 						.setIcon('trash')
+						.setWarning(true)
 						.onClick(() => this.executeNativeAction('delete-file', resolved));
 				});
 				return;
@@ -930,7 +931,7 @@ export class ImageContextMenuController {
 		ownerDocument?: Document
 	): void {
 		const { capabilities, ref } = resolved;
-		const menu = new Menu();
+		const menu = new Menu().setUseNativeMenu(false);
 		const isMacOS = Platform.isMacOS;
 		const groups = visibleImageMenuGroups(capabilities, { isMobile: Platform.isMobile });
 

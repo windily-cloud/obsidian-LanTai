@@ -9,17 +9,20 @@ import type {
 	VaultImage,
 	VaultImageBrowser
 } from '../../adapters/obsidian/vault-image-browser.obsidian.ts';
+import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
 import type {
 	ObjectStorageBrowser,
 	ObjectStorageFile,
 	ObjectStorageListResult
 } from '../object-storage.ts';
+import type { StorageSecrets } from '../storage-secrets.ts';
 import type {
 	UploadHistoryEntry,
 	UploadHistoryStore
 } from '../upload-history.ts';
 
 import { BucketGallerySource } from '../bucket-gallery-source.ts';
+import { resolveGalleryBrowserStorage } from '../gallery-source-factory.ts';
 import { RecentUploadsSource } from '../recent-uploads-source.ts';
 import { VaultGallerySource } from '../vault-gallery-source.ts';
 
@@ -96,6 +99,10 @@ class FakeHistoryStore implements UploadHistoryStore {
 
 	public list(profileId: string): UploadHistoryEntry[] {
 		return this.entries.filter((entry) => entry.profileId === profileId);
+	}
+
+	public listAll(): UploadHistoryEntry[] {
+		return [...this.entries];
 	}
 
 	public ready(): Promise<void> {
@@ -191,12 +198,48 @@ describe('RecentUploadsSource', () => {
 		{ key: 'other.png', profileId: 'p2', timestamp: 3000, url: `${PUBLIC_BASE}/other.png` }
 	];
 
-	it('lists only the current profile, newest first', async () => {
-		const source = new RecentUploadsSource(new FakeHistoryStore(entries), new FakeBrowserStorage([]), 'p1');
+	it('lists every profile, newest first', async () => {
+		const source = new RecentUploadsSource(
+			new FakeHistoryStore(entries),
+			() => Promise.resolve(new FakeBrowserStorage([]))
+		);
 		source.setQuery('');
 		const page = await source.loadMore(10);
-		expect(page.items.map((item) => item.key)).toEqual(['new.png', 'old.png']);
+		expect(page.items.map((item) => item.key)).toEqual(['other.png', 'new.png', 'old.png']);
 		expect(page.hasMore).toBe(false);
+	});
+
+	it('uses the stored url without resolving storage', async () => {
+		let resolved = 0;
+		const source = new RecentUploadsSource(
+			new FakeHistoryStore(entries),
+			() => {
+				resolved += 1;
+				return Promise.resolve(new FakeBrowserStorage([]));
+			}
+		);
+		source.setQuery('');
+		const page = await source.loadMore(1);
+		const first = page.items[0];
+		if (first === undefined) {
+			throw new Error('expected an item');
+		}
+		expect(await source.thumbnailUrl(first)).toBe(`${PUBLIC_BASE}/other.png`);
+		expect(resolved).toBe(0);
+	});
+
+	it('deletes through the storage for that entry profileId', async () => {
+		const history = new FakeHistoryStore(entries);
+		const storageP2 = new FakeBrowserStorage([]);
+		const source = new RecentUploadsSource(history, (profileId) => {
+			if (profileId !== 'p2') {
+				throw new Error(`unexpected profile ${profileId}`);
+			}
+			return Promise.resolve(storageP2);
+		});
+		await source.delete({ key: 'other.png', kind: 'recent', name: 'other.png', profileId: 'p2' });
+		expect(storageP2.deletedKeys).toEqual(['other.png']);
+		expect(history.entries.map((entry) => entry.key)).toEqual(['new.png', 'old.png']);
 	});
 
 	it('filters by query and paginates', async () => {
@@ -209,7 +252,10 @@ describe('RecentUploadsSource', () => {
 				url: `${PUBLIC_BASE}/img-${String(index)}.png`
 			})
 		);
-		const source = new RecentUploadsSource(new FakeHistoryStore(many), new FakeBrowserStorage([]), 'p1');
+		const source = new RecentUploadsSource(
+			new FakeHistoryStore(many),
+			() => Promise.resolve(new FakeBrowserStorage([]))
+		);
 		source.setQuery('img-');
 		const first = await source.loadMore(2);
 		const second = await source.loadMore(2);
@@ -222,8 +268,8 @@ describe('RecentUploadsSource', () => {
 	it('deletes remotely and from history', async () => {
 		const history = new FakeHistoryStore(entries);
 		const storage = new FakeBrowserStorage([]);
-		const source = new RecentUploadsSource(history, storage, 'p1');
-		await source.delete({ key: 'old.png', kind: 'recent', name: 'old.png' });
+		const source = new RecentUploadsSource(history, () => Promise.resolve(storage));
+		await source.delete({ key: 'old.png', kind: 'recent', name: 'old.png', profileId: 'p1' });
 		expect(storage.deletedKeys).toEqual(['old.png']);
 		expect(history.entries.map((entry) => entry.key)).toEqual(['new.png', 'other.png']);
 	});
@@ -231,8 +277,8 @@ describe('RecentUploadsSource', () => {
 	it('purges from history without touching remote', async () => {
 		const history = new FakeHistoryStore(entries);
 		const storage = new FakeBrowserStorage([]);
-		const source = new RecentUploadsSource(history, storage, 'p1');
-		await source.purge({ key: 'old.png', kind: 'recent', name: 'old.png' });
+		const source = new RecentUploadsSource(history, () => Promise.resolve(storage));
+		await source.purge({ key: 'old.png', kind: 'recent', name: 'old.png', profileId: 'p1' });
 		expect(storage.deletedKeys).toEqual([]);
 		expect(history.entries.map((entry) => entry.key)).toEqual(['new.png', 'other.png']);
 	});
@@ -242,15 +288,29 @@ describe('RecentUploadsSource', () => {
 		const storage = new FakeBrowserStorage([], {
 			existsError: Object.assign(new Error('UnknownError'), { code: 'Unknown' })
 		});
-		const source = new RecentUploadsSource(history, storage, 'p1');
-		expect(await source.verify({ key: 'missing.png', kind: 'recent', name: 'missing.png' })).toBe(true);
+		const source = new RecentUploadsSource(history, () => Promise.resolve(storage));
+		expect(
+			await source.verify({
+				key: 'missing.png',
+				kind: 'recent',
+				name: 'missing.png',
+				profileId: 'p1'
+			})
+		).toBe(true);
 	});
 
 	it('reports missing objects as not present', async () => {
 		const history = new FakeHistoryStore(entries);
 		const storage = new FakeBrowserStorage([]);
-		const source = new RecentUploadsSource(history, storage, 'p1');
-		expect(await source.verify({ key: 'old.png', kind: 'recent', name: 'old.png' })).toBe(false);
+		const source = new RecentUploadsSource(history, () => Promise.resolve(storage));
+		expect(
+			await source.verify({
+				key: 'old.png',
+				kind: 'recent',
+				name: 'old.png',
+				profileId: 'p1'
+			})
+		).toBe(false);
 	});
 });
 
@@ -288,3 +348,61 @@ describe('VaultGallerySource', () => {
 		expect(browser.trashedPaths).toEqual(['photos/a.png']);
 	});
 });
+
+describe('resolveGalleryBrowserStorage', () => {
+	it('creates LanTai storage without bucket secrets', async () => {
+		const created: string[] = [];
+		await resolveGalleryBrowserStorage({
+			createStorage: (profile) => {
+				created.push(profile.id);
+				return Promise.resolve(new FakeBrowserStorage([]));
+			},
+			getSecret: (): null => null,
+			profileId: 'lantai',
+			profiles: [lantaiProfile(), bucketProfile()]
+		});
+		expect(created).toEqual(['lantai']);
+	});
+
+	it('creates S3 storage with that profile secrets', async () => {
+		const seen: string[] = [];
+		await resolveGalleryBrowserStorage({
+			createStorage: (profile, secrets: StorageSecrets) => {
+				seen.push(profile.id, secrets.accessKeyId, secrets.secretAccessKey);
+				return Promise.resolve(new FakeBrowserStorage([]));
+			},
+			getSecret: (name): string => `${name}-value`,
+			profileId: 'p1',
+			profiles: [lantaiProfile(), bucketProfile()]
+		});
+		expect(seen).toEqual(['p1', 'p1-access-key-value', 'p1-secret-key-value']);
+	});
+});
+
+function bucketProfile(): StorageProfile {
+	return {
+		accessKeyIdSecretName: 'p1-access-key',
+		bucket: 'photos',
+		id: 'p1',
+		name: 'Photos',
+		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+		objectKeyTemplate: '${originalName}.${ext}',
+		provider: 's3',
+		publicBaseUrl: PUBLIC_BASE,
+		secretAccessKeySecretName: 'p1-secret-key'
+	};
+}
+
+function lantaiProfile(): StorageProfile {
+	return {
+		accessKeyIdSecretName: 'lt-access',
+		bucket: '',
+		id: 'lantai',
+		name: 'LanTai',
+		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+		objectKeyTemplate: '${originalName}.${ext}',
+		provider: 'lantai',
+		publicBaseUrl: '',
+		secretAccessKeySecretName: 'lt-secret'
+	};
+}

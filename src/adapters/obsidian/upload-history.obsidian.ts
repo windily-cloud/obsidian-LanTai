@@ -51,6 +51,10 @@ export class ObsidianUploadHistoryStore implements UploadHistoryStore {
 		return filterHistoryEntries(this.entries, profileId);
 	}
 
+	public listAll(): UploadHistoryEntry[] {
+		return [...this.entries];
+	}
+
 	public ready(): Promise<void> {
 		return this.loadPromise;
 	}

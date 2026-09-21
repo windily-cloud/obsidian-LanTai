@@ -3,15 +3,15 @@ import { Notice } from 'obsidian';
 import type {
 	ConfirmOverwrite,
 	CoordinatedUploadMode
-} from '../actions/upload-conflict-coordinator.ts';
-import type { UploadConflictClass } from '../storage/classify-upload-conflict.ts';
-import type { ObjectStorage } from '../storage/object-storage.ts';
-import type { UploadHistoryStore } from '../storage/upload-history.ts';
+} from '../../actions/upload-conflict-coordinator.ts';
+import type { UploadConflictClass } from '../../storage/classify-upload-conflict.ts';
+import type { ObjectStorage } from '../../storage/object-storage.ts';
+import type { UploadHistoryStore } from '../../storage/upload-history.ts';
 
-import { coordinateUploadModes } from '../actions/upload-conflict-coordinator.ts';
-import { t } from '../i18n/index.ts';
-import { NameTemplateEngine } from '../path/name-template-engine.ts';
-import { classifyUploadConflict } from '../storage/classify-upload-conflict.ts';
+import { coordinateUploadModes } from '../../actions/upload-conflict-coordinator.ts';
+import { t } from '../../i18n/index.ts';
+import { NameTemplateEngine } from '../../path/name-template-engine.ts';
+import { classifyUploadConflict } from '../../storage/classify-upload-conflict.ts';
 
 const UPLOAD_NOTICE_MS = 2000;
 

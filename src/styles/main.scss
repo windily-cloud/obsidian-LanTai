@@ -8,6 +8,25 @@
 	/* Override library styles */
 }
 
+.menu-item.is-warning {
+	color: var(--text-error);
+
+	.menu-item-icon {
+		color: var(--text-error);
+	}
+
+	&.selected,
+	&.is-selected,
+	&:hover {
+		background-color: var(--background-modifier-error-hover, var(--background-modifier-error));
+		color: var(--text-error);
+
+		.menu-item-icon {
+			color: var(--text-error);
+		}
+	}
+}
+
 .lantai-section-heading {
     padding-left: 0;
 }
@@ -30,12 +49,12 @@
 }
 
 .lantai-s3-settings-host,
-.lantai-account-host {
+.lantai-account-host,
+.lantai-detail-panel {
 	align-items: stretch;
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
-	padding-block: var(--size-4-2);
 	width: 100%;
 
 	> .setting-item {
@@ -43,6 +62,11 @@
 		padding-block: var(--size-4-2);
 		width: 100%;
 	}
+}
+
+.lantai-s3-settings-host,
+.lantai-account-host {
+	padding-block: var(--size-4-2);
 }
 
 .lantai-s3-settings-host {
@@ -175,6 +199,13 @@
 			min-width: 8rem;
 		}
 
+		.lantai-gallery-provider,
+		.lantai-gallery-sort {
+			flex: 0 1 10rem;
+			max-width: 14rem;
+			min-width: 7rem;
+		}
+
 		.lantai-gallery-layout {
 			flex: 0 0 auto;
 		}
@@ -185,7 +216,9 @@
 
 		.search-input-container,
 		.search-input-container input,
-		.lantai-gallery-profile select {
+		.lantai-gallery-profile select,
+		.lantai-gallery-provider select,
+		.lantai-gallery-sort select {
 			width: 100%;
 		}
 	}
@@ -194,38 +227,50 @@
 		align-items: center;
 		display: flex;
 		flex: 0 1 auto;
-		gap: var(--size-4-1);
 		max-width: 100%;
 		min-width: 0;
+	}
 
-		.lantai-gallery-source-button {
-			background: transparent;
-			border: 1px solid var(--background-modifier-border);
-			border-radius: var(--radius-m);
-			color: var(--text-muted);
-			cursor: pointer;
-			font-size: var(--font-ui-smaller);
-			padding: var(--size-4-1) var(--size-4-3);
-			white-space: nowrap;
-
-			&:hover {
-				background: var(--background-modifier-hover);
-				color: var(--text-normal);
-			}
-
-			&[aria-pressed='true'] {
-				background: var(--interactive-accent);
-				border-color: var(--interactive-accent);
-				color: var(--text-on-accent);
-			}
-		}
+	.lantai-gallery-split {
+		display: flex;
+		flex: 1 1 auto;
+		min-height: 0;
+		width: 100%;
 	}
 
 	.lantai-gallery-body {
 		flex: 1 1 auto;
 		min-height: 0;
+		min-width: 0;
 		overflow: auto;
 		width: 100%;
+	}
+
+	.lantai-gallery-resizer {
+		background: transparent;
+		cursor: col-resize;
+		flex: 0 0 0;
+		position: relative;
+		touch-action: none;
+		width: 0;
+		z-index: 1;
+
+		&::before {
+			content: '';
+			cursor: col-resize;
+			inset-block: 0;
+			inset-inline-start: -4px;
+			position: absolute;
+			width: 8px;
+		}
+	}
+
+	.lantai-gallery-panel {
+		background: var(--background-primary);
+		border-inline-start: 1px solid var(--background-modifier-border);
+		flex: 0 0 auto;
+		min-width: 0;
+		overflow: auto;
 	}
 
 	.lantai-gallery-grid {
@@ -273,7 +318,8 @@
 		}
 
 		&:hover,
-		&:focus-visible {
+		&:focus-visible,
+		&.is-selected {
 			border-color: var(--interactive-accent);
 			box-shadow: var(--shadow-l);
 			outline: 2px solid var(--interactive-accent);
@@ -289,13 +335,47 @@
 		width: 100%;
 	}
 
+	.lantai-gallery-caption {
+		display: flex;
+		flex-direction: column;
+		gap: var(--size-4-1);
+		padding: var(--size-4-3);
+	}
+
 	.lantai-gallery-name {
 		font-size: var(--font-ui-smaller);
 		font-weight: var(--font-medium);
 		overflow: hidden;
-		padding: var(--size-4-3);
+		text-align: center;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.lantai-gallery-meta {
+		color: var(--text-muted);
+		font-size: var(--font-ui-smaller);
+		text-align: center;
+	}
+
+	.lantai-gallery-tags {
+		align-items: center;
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--size-4-1);
+	}
+
+	.lantai-gallery-tag {
+		background: var(--background-modifier-hover);
+		border: 0;
+		border-radius: var(--radius-s);
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: var(--font-ui-smaller);
+		padding: 0.1rem 0.4rem;
+
+		&:hover {
+			color: var(--text-normal);
+		}
 	}
 
 	.lantai-gallery-empty,
@@ -316,6 +396,23 @@
 			max-width: none;
 			width: 100%;
 		}
+	}
+}
+
+@media (max-width: 720px) {
+	.lantai-gallery.is-panel-open .lantai-gallery-split {
+		flex-direction: column;
+	}
+
+	.lantai-gallery .lantai-gallery-resizer {
+		display: none !important;
+	}
+
+	.lantai-gallery .lantai-gallery-panel {
+		border-block-start: 1px solid var(--background-modifier-border);
+		border-inline-start: 0;
+		max-height: 50%;
+		width: 100% !important;
 	}
 }
 
@@ -427,57 +524,158 @@ $lantai-image-layouts: (
 	font-variant-numeric: tabular-nums;
 }
 
-/* --- 兰台附件详情弹窗 --- */
-.lantai-detail-preview {
-	border-radius: var(--radius-m);
-	display: block;
-	margin: 0 auto 1rem;
-	max-height: 16rem;
-	max-width: 100%;
-	object-fit: contain;
-}
+/* --- 兰台附件详情分栏 --- */
+.lantai-detail-panel {
+	padding: var(--size-4-2);
 
-.lantai-detail-info {
-	color: var(--text-muted);
-	display: flex;
-	flex-direction: column;
-	font-size: var(--font-ui-smaller);
-	gap: 0.15rem;
-	margin-bottom: 0.75rem;
-}
-
-.lantai-detail-tags {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.35rem;
-	margin-bottom: 0.75rem;
-
-	.lantai-detail-empty-tags {
-		color: var(--text-faint);
-		font-size: var(--font-ui-smaller);
+	> .setting-item {
+		background: transparent !important;
+		background-color: transparent !important;
+		border: none !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+		margin: 0 !important;
+		padding-block: var(--size-4-1);
+		width: 100%;
 	}
 
-	.lantai-detail-tag {
+	.lantai-detail-heading {
 		align-items: center;
-		background-color: var(--background-modifier-hover);
-		border-radius: var(--radius-s);
-		display: inline-flex;
-		font-size: var(--font-ui-smaller);
-		gap: 0.25rem;
-		padding: 0.15rem 0.4rem;
 
-		button {
-			background: none;
+		.setting-item-control {
+			padding-top: 0;
+		}
+	}
+
+	.lantai-detail-preview-block {
+		align-items: stretch;
+		display: flex;
+		flex-direction: column;
+		gap: var(--size-4-1);
+	}
+
+	.lantai-detail-preview {
+		border-radius: var(--radius-m);
+		display: block;
+		margin: 0 auto;
+		max-height: 12rem;
+		max-width: 100%;
+		object-fit: contain;
+	}
+
+	.lantai-detail-filename {
+		color: var(--text-normal);
+		font-size: var(--font-ui-small);
+		font-weight: var(--font-medium);
+		margin: 0;
+		overflow: hidden;
+		padding: var(--size-4-1) 0;
+		text-align: center;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		width: 100%;
+	}
+
+	input.lantai-detail-filename {
+		background: transparent;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+
+		&:hover {
+			background: var(--background-modifier-hover);
+		}
+
+		&:focus,
+		&:focus-visible {
+			border-bottom: 1px solid var(--interactive-accent);
 			box-shadow: none;
-			color: var(--text-muted);
-			cursor: pointer;
-			height: auto;
-			line-height: 1;
-			padding: 0;
+		}
+	}
 
-			&:hover {
-				color: var(--text-error);
+	.lantai-detail-meta {
+		align-items: center;
+
+		.setting-item-name {
+			color: var(--text-muted);
+			font-size: var(--font-ui-smaller);
+		}
+
+		.setting-item-control {
+			padding-top: 0;
+		}
+
+		.lantai-detail-meta-value {
+			color: var(--text-normal);
+			font-size: var(--font-ui-smaller);
+			font-variant-numeric: tabular-nums;
+		}
+	}
+
+	.lantai-detail-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--size-4-1);
+		margin-top: var(--size-4-1);
+
+		&:empty {
+			display: none;
+			margin: 0;
+		}
+
+		.lantai-detail-tag {
+			align-items: center;
+			background-color: var(--background-modifier-hover);
+			border-radius: var(--radius-s);
+			display: inline-flex;
+			font-size: var(--font-ui-smaller);
+			gap: var(--size-4-1);
+			padding: 0.1rem 0.2rem 0.1rem 0.4rem;
+
+			.clickable-icon,
+			.extra-setting-button {
+				--icon-size: var(--icon-xs);
+				margin: 0;
+				padding: 0;
 			}
 		}
+	}
+
+	.lantai-detail-references {
+		background: var(--background-secondary);
+		border-radius: var(--radius-l);
+		overflow: hidden;
+		padding: var(--size-4-2);
+
+		.setting-item {
+			background: transparent !important;
+			background-color: transparent !important;
+			border: none !important;
+			border-radius: 0 !important;
+			box-shadow: none !important;
+			margin: 0 !important;
+			padding-block: var(--size-4-1);
+			width: 100%;
+		}
+	}
+
+	.lantai-detail-reference {
+		cursor: pointer;
+
+		&:hover {
+			background: var(--background-modifier-hover);
+		}
+
+		.setting-item-name a {
+			text-decoration: none;
+		}
+
+		.setting-item-description {
+			color: var(--text-faint);
+		}
+	}
+
+	.lantai-detail-actions .setting-item-control {
+		justify-content: flex-end;
 	}
 }

@@ -4,12 +4,15 @@ import {
 	it
 } from 'vitest';
 
-import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
+import type { StorageProfile } from '../../../settings/sections/s3/storage-profile.ts';
 
 import {
+	galleryTagSearchQuery,
 	getObjectFileName,
-	selectGalleryProfile
-} from './storage-gallery-view.ts';
+	parseSortOption,
+	selectGalleryProfile,
+	sortOptionId
+} from '../storage-gallery-view.ts';
 
 describe('storage gallery helpers', () => {
 	it('uses the gallery profile id when it exists', () => {
@@ -34,6 +37,19 @@ describe('storage gallery helpers', () => {
 	it('extracts the image name from an object key', () => {
 		expect(getObjectFileName('notes/2026/cat photo.png')).toBe('cat photo.png');
 		expect(getObjectFileName('cat.png')).toBe('cat.png');
+	});
+
+	it('maps sort dropdown ids', () => {
+		expect(parseSortOption('newest')).toEqual({ order: 'desc', sort: 'createdAt' });
+		expect(parseSortOption('oldest')).toEqual({ order: 'asc', sort: 'createdAt' });
+		expect(parseSortOption('name')).toEqual({ order: 'asc', sort: 'name' });
+		expect(parseSortOption('size')).toEqual({ order: 'desc', sort: 'size' });
+		expect(sortOptionId('createdAt', 'desc')).toBe('newest');
+		expect(sortOptionId('createdAt', 'asc')).toBe('oldest');
+	});
+
+	it('writes tag search queries', () => {
+		expect(galleryTagSearchQuery('风景')).toBe('tag:风景');
 	});
 });
 

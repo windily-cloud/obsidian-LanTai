@@ -6,15 +6,15 @@ import {
 	Setting
 } from 'obsidian';
 
-import type { ImageLinkParser } from '../link/image-link-parser.ts';
-import type { MigrationPlanStore } from '../migration/migration-plan-store.ts';
-import type { MigrationPlan } from '../migration/migration-plan.ts';
-import type { MigrationRunner } from '../migration/migration-runner.ts';
-import type { MigrationScanVault } from '../migration/migration-scanner.ts';
-import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
+import type { ImageLinkParser } from '../../link/image-link-parser.ts';
+import type { MigrationPlanStore } from '../../migration/migration-plan-store.ts';
+import type { MigrationPlan } from '../../migration/migration-plan.ts';
+import type { MigrationRunner } from '../../migration/migration-runner.ts';
+import type { MigrationScanVault } from '../../migration/migration-scanner.ts';
+import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
 
-import { t } from '../i18n/index.ts';
-import { formatBytes } from '../lantai/lantai-account.ts';
+import { t } from '../../i18n/index.ts';
+import { formatBytes } from '../../lantai/lantai-account.ts';
 import {
 	addMigrationFolder,
 	assertMigrationFoldersExist,
@@ -23,12 +23,12 @@ import {
 	MIGRATION_ALL_FOLDERS,
 	migrationFolderLabel,
 	resolveMigrationFolders
-} from '../migration/migration-folders.ts';
-import { scanMigrationPlan } from '../migration/migration-scanner.ts';
+} from '../../migration/migration-folders.ts';
+import { scanMigrationPlan } from '../../migration/migration-scanner.ts';
 import {
 	buildMigrationUrlPattern,
 	migrationProfileBlockReason
-} from '../migration/migration-url-pattern.ts';
+} from '../../migration/migration-url-pattern.ts';
 import { confirmAction } from './confirm-modal.ts';
 
 export interface OpenMigrationModalParams {

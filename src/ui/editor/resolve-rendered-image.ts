@@ -1,9 +1,9 @@
 import type {
 	ImageRef,
 	ImageTarget
-} from '../link/image-ref.ts';
+} from '../../link/image-ref.ts';
 
-export type { ImageTarget } from '../link/image-ref.ts';
+export type { ImageTarget } from '../../link/image-ref.ts';
 
 export type ImageMenuItemKey =
 	| 'copy'
@@ -58,7 +58,8 @@ const IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
 	['rename', 'move', 'star'],
 	['openWithDefaultApp', 'showInFolder', 'showInFileList'],
 	['copyPath', 'layout'],
-	['remove', 'deleteFile']
+	['remove'],
+	['deleteFile']
 ];
 
 const MOBILE_IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
@@ -69,8 +70,11 @@ const MOBILE_IMAGE_MENU_GROUPS: readonly (readonly ImageMenuItemKey[])[] = [
 	['rename', 'move', 'star'],
 	['share'],
 	['copyPath', 'layout'],
-	['remove', 'deleteFile']
+	['remove'],
+	['deleteFile']
 ];
+
+const DESTRUCTIVE_MENU_ITEM: ImageMenuItemKey = 'deleteFile';
 
 const IMAGE_MENU_ITEM_CAPABILITY: Record<ImageMenuItemKey, keyof ImageMenuCapabilities> = {
 	copy: 'copy',
@@ -291,9 +295,19 @@ export function visibleImageMenuGroups(
 	options?: VisibleImageMenuGroupsOptions
 ): ImageMenuItemKey[][] {
 	const groups = options?.isMobile === true ? MOBILE_IMAGE_MENU_GROUPS : IMAGE_MENU_GROUPS;
-	return groups
-		.map((group) => group.filter((item) => capabilities[IMAGE_MENU_ITEM_CAPABILITY[item]]))
+	const visible = groups
+		.map((group) =>
+			group.filter(
+				(item) =>
+					item !== DESTRUCTIVE_MENU_ITEM
+					&& capabilities[IMAGE_MENU_ITEM_CAPABILITY[item]]
+			)
+		)
 		.filter((group) => group.length > 0);
+	if (capabilities[IMAGE_MENU_ITEM_CAPABILITY[DESTRUCTIVE_MENU_ITEM]]) {
+		visible.push([DESTRUCTIVE_MENU_ITEM]);
+	}
+	return visible;
 }
 
 function basename(path: string): string {

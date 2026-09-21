@@ -16,40 +16,53 @@ import {
 } from 'obsidian';
 import { noopAsync } from 'obsidian-dev-utils/function';
 
+import type { LocalImageReferenceFinder } from '../../link/local-image-reference-finder.ts';
 import type {
 	RemoteImageReference,
 	RemoteImageReferenceFinder
-} from '../link/remote-image-reference-finder.ts';
-import type { PluginSettings } from '../settings/plugin-settings.ts';
-import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
+} from '../../link/remote-image-reference-finder.ts';
+import type { PluginSettings } from '../../settings/plugin-settings.ts';
+import type { StorageProfile } from '../../settings/sections/s3/storage-profile.ts';
 import type {
 	CreateGallerySourceInput,
 	GalleryDataSource,
 	GalleryImage,
 	GallerySourceKind
-} from '../storage/gallery-source.ts';
-import type { ObjectStorage } from '../storage/object-storage.ts';
-import type { StorageSecrets } from '../storage/storage-secrets.ts';
+} from '../../storage/gallery-source.ts';
+import type {
+	GallerySortKey,
+	GallerySortOrder,
+	ObjectStorage
+} from '../../storage/object-storage.ts';
+import type { StorageSecrets } from '../../storage/storage-secrets.ts';
+import type { GallerySession } from './gallery-session.ts';
 import type { GalleryUploadRequest } from './gallery-uploader.ts';
 
-import { t } from '../i18n/index.ts';
+import { ObsidianGallerySessionStore } from '../../adapters/obsidian/gallery-session.obsidian.ts';
+import { t } from '../../i18n/index.ts';
+import { formatBytes } from '../../lantai/lantai-account.ts';
 import {
 	formatGalleryDropEmbed,
 	GALLERY_DROP_EMBED_MIME,
 	interceptGalleryEditorDrop
-} from '../link/gallery-drop-embed.ts';
-import { isManageableSource } from '../storage/gallery-source.ts';
+} from '../../link/gallery-drop-embed.ts';
 import {
 	formatActionError,
 	isListAccessDenied,
 	validateStorageSecrets
-} from '../storage/storage-credential-guard.ts';
-import { openLanTaiDetailModal } from './lantai-detail-modal.ts';
+} from '../../storage/storage-credential-guard.ts';
 import {
 	LONG_PRESS_HOLD_MS,
 	LONG_PRESS_MAX_MOVE_PX,
 	LongPressGesture
-} from './long-press-gesture.ts';
+} from '../long-press-gesture.ts';
+import {
+	formatGalleryDate,
+	GALLERY_PANEL_WIDTH_DEFAULT,
+	GALLERY_PANEL_WIDTH_MAX,
+	GALLERY_PANEL_WIDTH_MIN
+} from './gallery-session.ts';
+import { GalleryDetailPanel } from './lantai-detail-panel.ts';
 
 export const STORAGE_GALLERY_VIEW_TYPE = 'lantai-storage-gallery';
 
@@ -61,6 +74,7 @@ const LIGHTBOX_ZOOM_SENSITIVITY = 0.0015;
 const PAGE_SIZE = 48;
 const SEARCH_DEBOUNCE_MS = 250;
 const SCROLL_LOAD_THRESHOLD = 300;
+const CARD_VISIBLE_TAG_COUNT = 3;
 
 interface ButtonWithDisabledState {
 	setDisabled(disabled: boolean): unknown;
@@ -76,17 +90,22 @@ interface DeleteStorageImageModalConstructorParams {
 
 type GalleryLayout = 'cards' | 'masonry';
 
+interface GallerySortOption {
+	readonly order: GallerySortOrder;
+	readonly sort: GallerySortKey;
+}
+
 interface StorageGalleryViewConstructorParams {
 	createGallerySource(input: CreateGallerySourceInput): Promise<GalleryDataSource>;
 	createUploadStorage(
 		profile: StorageProfile,
 		secrets: StorageSecrets
 	): Promise<ObjectStorage>;
+	readonly findLocalReferences: LocalImageReferenceFinder;
 	readonly findReferences: RemoteImageReferenceFinder;
 	getSecret(name: string): null | string;
 	readonly leaf: WorkspaceLeaf;
 	pickAndUpload(params: GalleryUploadRequest): void;
-	saveSettings(): Promise<void>;
 	readonly settings: PluginSettings;
 }
 
@@ -307,8 +326,10 @@ export class StorageGalleryView extends ItemView {
 	) => Promise<ObjectStorage>;
 
 	private emptyEl: HTMLElement | undefined;
+	private readonly findLocalReferences: LocalImageReferenceFinder;
 	private readonly findReferences: RemoteImageReferenceFinder;
 	private readonly getSecret: (name: string) => null | string;
+	private galleryProfileId: null | string = null;
 	private gridEl: HTMLElement | undefined;
 	private hasMore = true;
 	private loadGeneration = 0;
@@ -317,18 +338,31 @@ export class StorageGalleryView extends ItemView {
 	private layout: GalleryLayout = 'cards';
 	private layoutButton: ExtraButtonComponent | undefined;
 	private lastLoadError: unknown;
+	private panel: GalleryDetailPanel | undefined;
+	private panelEl: HTMLElement | undefined;
+	private panelOpen = false;
+	private panelWidth = GALLERY_PANEL_WIDTH_DEFAULT;
 	private readonly pickAndUpload: (params: GalleryUploadRequest) => void;
+	private readonly previewUrls = new Map<string, string>();
+	private readonly loadedImages = new Map<string, GalleryImage>();
 	private profileDropdown: DropdownComponent | undefined;
 	private profileEl: HTMLElement | undefined;
-	private profileSave = noopAsync();
+	private providerDropdown: DropdownComponent | undefined;
 	private query = '';
+	private resizerEl: HTMLElement | undefined;
 	private scrollEl: HTMLElement | undefined;
 	private searchComponent: SearchComponent | undefined;
 	private searchTimer: number | undefined;
-	private readonly saveSettings: () => Promise<void>;
+	private selectedKey: null | string = null;
+	private readonly sessionStore: ObsidianGallerySessionStore;
 	private readonly settings: PluginSettings;
+	private sortDropdown: DropdownComponent | undefined;
+	private sortEl: HTMLElement | undefined;
+	private sortKey: GallerySortKey = 'createdAt';
+	private sortOrder: GallerySortOrder = 'desc';
 	private source: GalleryDataSource | undefined;
-	private readonly sourceButtons = new Map<GallerySourceKind, HTMLButtonElement>();
+	private sourceKind: GallerySourceKind = 'recent';
+	private splitEl: HTMLElement | undefined;
 	private uploadEl: HTMLElement | undefined;
 	private readonly brokenImageHandled = new Set<string>();
 	private readonly brokenImageInFlight = new Set<string>();
@@ -337,13 +371,15 @@ export class StorageGalleryView extends ItemView {
 		super(params.leaf);
 		this.createGallerySource = (input): Promise<GalleryDataSource> => params.createGallerySource(input);
 		this.createUploadStorage = (profile, secrets): Promise<ObjectStorage> => params.createUploadStorage(profile, secrets);
+		this.findLocalReferences = params.findLocalReferences;
 		this.findReferences = params.findReferences;
 		this.getSecret = (name): null | string => params.getSecret(name);
 		this.pickAndUpload = (uploadParams): void => {
 			params.pickAndUpload(uploadParams);
 		};
-		this.saveSettings = (): Promise<void> => params.saveSettings();
 		this.settings = params.settings;
+		this.sessionStore = new ObsidianGallerySessionStore({ app: this.app });
+		this.applySession(this.sessionStore.read());
 	}
 
 	public override getDisplayText(): string {
@@ -363,6 +399,7 @@ export class StorageGalleryView extends ItemView {
 		if (this.searchTimer !== undefined) {
 			this.contentEl.win.clearTimeout(this.searchTimer);
 		}
+		this.sessionStore.flush();
 		this.contentEl.empty();
 		return noopAsync();
 	}
@@ -383,7 +420,7 @@ export class StorageGalleryView extends ItemView {
 			.onChange((value) => {
 				this.scheduleSearch(value);
 			});
-		this.buildSourceSegments(toolbarEl);
+		this.buildSourceControls(toolbarEl);
 		const controlsEl = toolbarEl.createDiv('lantai-gallery-controls');
 		this.profileEl = controlsEl.createDiv('lantai-gallery-profile');
 		this.profileDropdown = new DropdownComponent(this.profileEl).onChange(
@@ -399,6 +436,12 @@ export class StorageGalleryView extends ItemView {
 		);
 		this.profileDropdown.selectEl.title = t('gallery.profileAria');
 		this.refreshProfileDropdown();
+		this.sortEl = controlsEl.createDiv('lantai-gallery-sort');
+		this.sortDropdown = new DropdownComponent(this.sortEl).onChange((value) => {
+			this.selectSort(value);
+		});
+		this.sortDropdown.selectEl.setAttribute('aria-label', t('gallery.sortAria'));
+		this.refreshSortDropdown();
 		const uploadEl = controlsEl.createDiv('lantai-gallery-upload');
 		this.uploadEl = uploadEl;
 		new ExtraButtonComponent(uploadEl)
@@ -413,12 +456,38 @@ export class StorageGalleryView extends ItemView {
 		this.layoutButton = new ExtraButtonComponent(layoutEl).onClick(() => {
 			this.layout = this.layout === 'cards' ? 'masonry' : 'cards';
 			this.updateLayout();
+			this.persistSession(true);
 		});
-		this.scrollEl = this.contentEl.createDiv('lantai-gallery-body');
+		this.splitEl = this.contentEl.createDiv('lantai-gallery-split');
+		this.scrollEl = this.splitEl.createDiv('lantai-gallery-body');
 		this.gridEl = this.scrollEl.createDiv('lantai-gallery-grid');
 		this.updateLayout();
 		this.emptyEl = this.scrollEl.createDiv('lantai-gallery-empty');
 		this.loadingEl = this.scrollEl.createDiv('lantai-gallery-loading');
+		this.resizerEl = this.splitEl.createDiv('lantai-gallery-resizer');
+		this.panelEl = this.splitEl.createDiv('lantai-gallery-panel');
+		this.panel = new GalleryDetailPanel(this.panelEl, {
+			loadReferences: (image): Promise<RemoteImageReference[]> => this.loadReferences(image),
+			onClose: (): void => {
+				this.closePanel();
+			},
+			onDelete: (image): void => {
+				const url = this.previewUrls.get(image.key) ?? image.url ?? '';
+				this.confirmDelete(image, url).catch((error: unknown) => {
+					this.showError(error);
+				});
+			},
+			onOpenNote: (path): void => {
+				this.openNote(path).catch((error: unknown) => {
+					this.showError(error);
+				});
+			},
+			onUpdated: (image): void => {
+				this.patchCard(image);
+			}
+		});
+		this.bindPanelResize();
+		this.applyPanelLayout();
 		this.registerDomEvent(this.scrollEl, 'scroll', () => {
 			const scrollEl = this.scrollEl;
 			if (!scrollEl) {
@@ -458,7 +527,9 @@ export class StorageGalleryView extends ItemView {
 		if (!source) {
 			return;
 		}
-		const references = source.kind === 'vault' ? [] : await this.findReferences.find(publicUrl);
+		const references = source.kind === 'vault'
+			? await this.findLocalReferences.find(image.key)
+			: await this.findReferences.find(publicUrl);
 		new DeleteStorageImageModal({
 			app: this.app,
 			...(source.kind === 'vault'
@@ -473,17 +544,22 @@ export class StorageGalleryView extends ItemView {
 				if (source !== this.source) {
 					throw new Error(t('errors.galleryProfileChanged'));
 				}
-				await source.delete(image);
 				this.removeCard(image.key);
-				new Notice(t('gallery.deletedNotice'));
+				try {
+					await source.delete(image);
+					new Notice(t('gallery.deletedNotice'));
+				} catch (error) {
+					await this.reset();
+					throw error;
+				}
 			},
 			references
 		}).open();
 	}
 
 	private async createActiveSource(): Promise<GalleryDataSource> {
-		const kind = this.settings.gallerySource;
-		if (kind === 'vault') {
+		const kind = this.sourceKind;
+		if (kind === 'vault' || kind === 'recent') {
 			return this.createGallerySource({
 				kind,
 				profile: undefined,
@@ -532,8 +608,8 @@ export class StorageGalleryView extends ItemView {
 
 	private getSelectedProfile(): StorageProfile | undefined {
 		return selectGalleryProfile(
-			this.settings.profiles,
-			this.settings.galleryProfileId
+			bucketGalleryProfiles(this.settings.profiles),
+			this.galleryProfileId
 		);
 	}
 
@@ -593,34 +669,25 @@ export class StorageGalleryView extends ItemView {
 		if (generation !== this.loadGeneration) {
 			return;
 		}
+		this.previewUrls.set(image.key, url);
+		this.loadedImages.set(image.key, image);
 		const cardEl = this.gridEl.createDiv('lantai-gallery-card');
 		cardEl.dataset['objectKey'] = image.key;
-		cardEl.title = image.key;
 		cardEl.tabIndex = 0;
-		cardEl.setAttribute(
-			'aria-label',
-			`${image.name}. Press Enter to view full size or Shift+F10 for actions.`
-		);
+		cardEl.toggleClass('is-selected', image.key === this.selectedKey);
 		const imageEl = cardEl.createEl('img', {
-			attr: { alt: image.name, draggable: 'false', loading: 'lazy', src: url }
+			attr: { alt: displayTitle(image), draggable: 'false', loading: 'lazy', src: url }
 		});
 		imageEl.addClass('lantai-gallery-image');
-		const nameEl = cardEl.createDiv({
-			cls: 'lantai-gallery-name',
-			text: image.name
-		});
-		nameEl.title = image.key;
+		this.renderCardCaption(cardEl, image);
 		cardEl.addEventListener('dblclick', () => {
-			this.openLightbox(image.name, url);
+			this.openLightbox(displayTitle(image), url);
 		});
-		if (source.kind === 'lantai') {
-			// 单次点击打开管理详情；双击的第二下（detail === 2）留给灯箱。
-			cardEl.addEventListener('click', (event) => {
-				if (event.detail === 1) {
-					this.openDetail(image);
-				}
-			});
-		}
+		cardEl.addEventListener('click', (event) => {
+			if (event.detail === 1) {
+				this.openDetail(image, url);
+			}
+		});
 		if (source.kind === 'recent') {
 			imageEl.addEventListener('error', () => {
 				this.handleBrokenImage(image, imageEl, generation).catch(
@@ -646,7 +713,7 @@ export class StorageGalleryView extends ItemView {
 		cardEl.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') {
 				event.preventDefault();
-				this.openLightbox(image.name, url);
+				this.openLightbox(displayTitle(image), url);
 				return;
 			}
 			if (
@@ -737,7 +804,7 @@ export class StorageGalleryView extends ItemView {
 			}
 			gesture.touchEnd();
 			if (event.type === 'touchend' && !gesture.consumeFired() && !gesture.wasMoved()) {
-				this.openLightbox(image.name, url);
+				this.openDetail(image, url);
 			}
 		};
 		cardEl.addEventListener('touchend', end, { passive: true });
@@ -749,88 +816,95 @@ export class StorageGalleryView extends ItemView {
 		});
 	}
 
-	private buildSourceSegments(container: HTMLElement): void {
+	private buildSourceControls(container: HTMLElement): void {
 		const sourceEl = container.createDiv('lantai-gallery-source');
-		const segments: [GallerySourceKind, string][] = [
-			['recent', t('gallery.sourceRecent')],
-			['bucket', t('gallery.sourceBucket')],
-			['vault', t('gallery.sourceVault')],
-			['lantai', t('gallery.sourceLanTai')]
-		];
-		for (const [kind, label] of segments) {
-			const button = sourceEl.createEl('button', { text: label });
-			button.addClass('lantai-gallery-source-button');
-			button.setAttribute(
-				'aria-pressed',
-				String(kind === this.settings.gallerySource)
-			);
-			button.addEventListener('click', () => {
-				this.selectSource(kind).catch((error: unknown) => {
+		const providerEl = sourceEl.createDiv('lantai-gallery-provider');
+		this.providerDropdown = new DropdownComponent(providerEl).onChange((value) => {
+			if (isGallerySourceKind(value)) {
+				this.selectSource(value).catch((error: unknown) => {
 					this.showError(error);
 				});
-			});
-			this.sourceButtons.set(kind, button);
-		}
+			}
+		});
+		this.providerDropdown.addOption('recent', t('gallery.sourceRecent'));
+		this.providerDropdown.addOption('lantai', t('gallery.sourceLanTai'));
+		this.providerDropdown.addOption('vault', t('gallery.sourceVault'));
+		this.providerDropdown.addOption('bucket', t('gallery.sourceBucket'));
+		this.providerDropdown.selectEl.setAttribute('aria-label', t('gallery.providerAria'));
+		this.updateSourceControls();
 	}
 
 	private createFileMenu(image: GalleryImage, publicUrl: string): Menu {
-		const menu = new Menu()
+		return new Menu()
+			.setUseNativeMenu(false)
 			.addItem((item) =>
 				item
 					.setIcon('link')
 					.setTitle(t('gallery.copyUrl'))
 					.onClick(() => {
-						this.copyUrl(publicUrl).catch((error: unknown) => {
+						this.copyText(publicUrl).catch((error: unknown) => {
 							this.showError(error);
 						});
 					})
 			)
 			.addItem((item) =>
 				item
+					.setIcon('code')
+					.setTitle(t('gallery.copyMarkdown'))
+					.onClick(() => {
+						this.copyText(this.markdownLink(image, publicUrl)).catch((error: unknown) => {
+							this.showError(error);
+						});
+					})
+			)
+			.addItem((item) =>
+				item
+					.setIcon('pencil')
+					.setTitle(t('gallery.detailMenu'))
+					.onClick(() => {
+						this.openDetail(image, publicUrl);
+					})
+			)
+			.addSeparator()
+			.addItem((item) =>
+				item
 					.setIcon('trash')
 					.setTitle(t('gallery.deleteMenu'))
+					.setWarning(true)
 					.onClick(() => {
 						this.confirmDelete(image, publicUrl).catch((error: unknown) => {
 							this.showError(error);
 						});
 					})
 			);
-		const source = this.source;
-		if (source !== undefined && isManageableSource(source)) {
-			menu.addItem((item) =>
-				item
-					.setIcon('pencil')
-					.setTitle(t('gallery.detailMenu'))
-					.onClick(() => {
-						this.openDetail(image);
-					})
-			);
-		}
-		return menu;
 	}
 
-	/** 兰台源：详情弹窗承载重命名/标题/描述/标签（设计决策 11）。 */
-	private openDetail(image: GalleryImage): void {
+	private openDetail(image: GalleryImage, previewUrl: string): void {
 		const source = this.source;
-		if (source === undefined || !isManageableSource(source)) {
+		const panel = this.panel;
+		if (source === undefined || panel === undefined) {
 			return;
 		}
-		openLanTaiDetailModal({
-			app: this.app,
-			image,
-			onSaved: (): void => {
-				this.reset().catch((error: unknown) => {
-					this.showError(error);
-				});
-			},
-			source
-		});
+		this.selectedKey = image.key;
+		this.panelOpen = true;
+		panel.show(image, source, previewUrl);
+		this.highlightSelected();
+		this.applyPanelLayout();
+		this.persistSession(true);
 	}
 
-	private async copyUrl(publicUrl: string): Promise<void> {
+	private async copyText(text: string): Promise<void> {
 		// eslint-disable-next-line n/no-unsupported-features/node-builtins -- desktop clipboard API
-		await window.navigator.clipboard.writeText(publicUrl);
+		await window.navigator.clipboard.writeText(text);
 		new Notice(t('gallery.urlCopiedNotice'));
+	}
+
+	private markdownLink(image: GalleryImage, publicUrl: string): string {
+		return formatGalleryDropEmbed({
+			image,
+			linkStyle: 'markdown',
+			publicUrl
+		});
 	}
 
 	private async handleBrokenImage(
@@ -871,7 +945,7 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private async onUploaded(): Promise<void> {
-		if (this.settings.gallerySource === 'recent') {
+		if (this.sourceKind === 'recent') {
 			await this.reset();
 			return;
 		}
@@ -879,7 +953,7 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private async openUpload(): Promise<void> {
-		const kind = this.settings.gallerySource;
+		const kind = this.sourceKind;
 		if (kind === 'vault') {
 			return;
 		}
@@ -941,11 +1015,11 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private removeCard(key: string): void {
-		for (const card of this.gridEl?.children ?? []) {
-			if (card.getAttribute('data-object-key') === key) {
-				card.remove();
-				break;
-			}
+		this.findCard(key)?.remove();
+		this.previewUrls.delete(key);
+		this.loadedImages.delete(key);
+		if (this.selectedKey === key) {
+			this.closePanel();
 		}
 		this.updateEmptyState();
 	}
@@ -954,6 +1028,8 @@ export class StorageGalleryView extends ItemView {
 		const generation = ++this.loadGeneration;
 		this.brokenImageHandled.clear();
 		this.brokenImageInFlight.clear();
+		this.previewUrls.clear();
+		this.loadedImages.clear();
 		this.gridEl?.empty();
 		this.hasMore = true;
 		this.loading = false;
@@ -966,7 +1042,11 @@ export class StorageGalleryView extends ItemView {
 			}
 			this.source = source;
 			source.setQuery(this.query);
+			if (source.kind === 'lantai' && source.setSort !== undefined) {
+				source.setSort(this.sortKey, this.sortOrder);
+			}
 			await this.loadMore();
+			this.restoreSelectedPanel();
 			return true;
 		} catch (error) {
 			if (generation !== this.loadGeneration) {
@@ -995,84 +1075,47 @@ export class StorageGalleryView extends ItemView {
 	}
 
 	private async selectProfile(profileId: string): Promise<void> {
-		if (!this.settings.profiles.some((profile) => profile.id === profileId)) {
+		if (!this.settings.profiles.some((profile) => profile.id === profileId && profile.provider !== 'lantai')) {
 			return;
 		}
-		const previousProfileId = this.settings.galleryProfileId;
-		this.settings.galleryProfileId = profileId;
-		try {
-			await this.queueSettingsSave();
-		} catch (error) {
-			if (this.settings.galleryProfileId === profileId) {
-				this.settings.galleryProfileId = previousProfileId;
-				this.refreshProfileDropdown();
-			}
-			throw error;
-		}
-		if (this.settings.galleryProfileId !== profileId) {
-			return;
-		}
-		const loaded = await this.reset();
-		if (!loaded) {
+		this.galleryProfileId = profileId;
+		this.persistSession(true);
+		this.refreshProfileDropdown();
+		if (!(await this.reset())) {
 			this.presentLoadFailure();
 		}
 	}
 
 	private async selectSource(kind: GallerySourceKind): Promise<void> {
-		if (kind === this.settings.gallerySource) {
+		if (kind === this.sourceKind) {
 			return;
 		}
-		const previousKind = this.settings.gallerySource;
-		this.settings.gallerySource = kind;
-		this.updateSourceButtons();
-		try {
-			await this.queueSettingsSave();
-		} catch (error) {
-			if (this.settings.gallerySource === kind) {
-				this.settings.gallerySource = previousKind;
-				this.updateSourceButtons();
-			}
-			throw error;
-		}
-		if (this.settings.gallerySource !== kind) {
-			return;
-		}
+		this.sourceKind = kind;
+		this.closePanel();
+		this.updateSourceControls();
 		this.toggleSourceControls();
+		this.persistSession(true);
 		if (!(await this.reset())) {
 			this.presentLoadFailure();
 		}
 	}
 
 	private toggleSourceControls(): void {
-		const kind = this.settings.gallerySource;
+		const kind = this.sourceKind;
 		const isVault = kind === 'vault';
-		// 兰台源不需要选配置档：服务地址与 API key 都是账号级设置。
-		const showProfile = !isVault && kind !== 'lantai';
+		const showProfile = kind === 'bucket';
 		if (this.profileEl) {
 			this.profileEl.style.display = showProfile ? '' : 'none';
+		}
+		if (this.sortEl) {
+			this.sortEl.style.display = kind === 'lantai' ? '' : 'none';
 		}
 		if (this.uploadEl) {
 			this.uploadEl.style.display = isVault ? 'none' : '';
 		}
-		// 设计 §6.4：只有兰台源支持 `tag:` 前缀语法，因此只在兰台源上提示它。
 		this.searchComponent?.setPlaceholder(
 			t(kind === 'lantai' ? 'gallery.searchPlaceholderLanTai' : 'gallery.searchPlaceholder')
 		);
-	}
-
-	private updateSourceButtons(): void {
-		for (const [kind, button] of this.sourceButtons) {
-			button.setAttribute(
-				'aria-pressed',
-				String(kind === this.settings.gallerySource)
-			);
-		}
-	}
-
-	private queueSettingsSave(): Promise<void> {
-		const save = this.profileSave.then(() => this.saveSettings());
-		this.profileSave = save.catch(() => undefined);
-		return save;
 	}
 
 	private refreshProfileDropdown(): void {
@@ -1080,16 +1123,17 @@ export class StorageGalleryView extends ItemView {
 			return;
 		}
 		this.profileDropdown.selectEl.empty();
-		const galleryProfileId = this.settings.galleryProfileId;
+		const bucketProfiles = bucketGalleryProfiles(this.settings.profiles);
+		const galleryProfileId = this.galleryProfileId;
 		const knownSelected = galleryProfileId !== null
-			&& this.settings.profiles.some((profile) => profile.id === galleryProfileId);
-		if (this.settings.profiles.length === 0) {
+			&& bucketProfiles.some((profile) => profile.id === galleryProfileId);
+		if (bucketProfiles.length === 0) {
 			this.profileDropdown.addOption('', t('gallery.noProfiles'));
 		} else {
 			if (!knownSelected) {
 				this.profileDropdown.addOption('', t('gallery.selectProfile'));
 			}
-			for (const profile of this.settings.profiles) {
+			for (const profile of bucketProfiles) {
 				this.profileDropdown.addOption(
 					profile.id,
 					profile.name || t('gallery.untitledProfile')
@@ -1098,7 +1142,7 @@ export class StorageGalleryView extends ItemView {
 		}
 		this.profileDropdown
 			.setValue(knownSelected ? galleryProfileId : '')
-			.setDisabled(this.settings.profiles.length === 0);
+			.setDisabled(bucketProfiles.length === 0);
 	}
 
 	private scheduleSearch(value: string): void {
@@ -1156,12 +1200,264 @@ export class StorageGalleryView extends ItemView {
 			buttonEl.setAttribute('aria-label', t('gallery.masonryAria'));
 		}
 	}
+
+	private applySession(session: GallerySession): void {
+		this.layout = session.layout;
+		this.panelOpen = session.panelOpen;
+		this.panelWidth = session.panelWidth;
+		this.galleryProfileId = session.profileId;
+		this.selectedKey = session.selectedKey;
+		this.sortKey = session.sortKey;
+		this.sortOrder = session.sortOrder;
+		this.sourceKind = session.source;
+	}
+
+	private persistSession(immediate: boolean): void {
+		const session = this.currentSession();
+		if (immediate) {
+			this.sessionStore.saveImmediate(session);
+			return;
+		}
+		this.sessionStore.saveDebounced(session);
+	}
+
+	private currentSession(): GallerySession {
+		return {
+			layout: this.layout,
+			panelOpen: this.panelOpen,
+			panelWidth: this.panelWidth,
+			profileId: this.galleryProfileId,
+			selectedKey: this.selectedKey,
+			sortKey: this.sortKey,
+			sortOrder: this.sortOrder,
+			source: this.sourceKind,
+			version: 1
+		};
+	}
+
+	private updateSourceControls(): void {
+		this.providerDropdown?.setValue(this.sourceKind);
+	}
+
+	private refreshSortDropdown(): void {
+		if (!this.sortDropdown) {
+			return;
+		}
+		this.sortDropdown.selectEl.empty();
+		this.sortDropdown.addOption('newest', t('gallery.sortNewest'));
+		this.sortDropdown.addOption('oldest', t('gallery.sortOldest'));
+		this.sortDropdown.addOption('name', t('gallery.sortName'));
+		this.sortDropdown.addOption('size', t('gallery.sortSize'));
+		this.sortDropdown.setValue(sortOptionId(this.sortKey, this.sortOrder));
+	}
+
+	private selectSort(optionId: string): void {
+		const parsed = parseSortOption(optionId);
+		this.sortKey = parsed.sort;
+		this.sortOrder = parsed.order;
+		this.persistSession(true);
+		this.reset()
+			.then((loaded) => {
+				if (!loaded) {
+					this.presentLoadFailure();
+				}
+			})
+			.catch((error: unknown) => {
+				this.showError(error);
+			});
+	}
+
+	private bindPanelResize(): void {
+		const handle = this.resizerEl;
+		const panel = this.panelEl;
+		if (!handle || !panel) {
+			return;
+		}
+		handle.addEventListener('pointerdown', (event) => {
+			if (event.button !== 0) {
+				return;
+			}
+			event.preventDefault();
+			const startX = event.clientX;
+			const startWidth = this.panelWidth;
+			const onMove = (move: PointerEvent): void => {
+				const next = Math.min(
+					GALLERY_PANEL_WIDTH_MAX,
+					Math.max(GALLERY_PANEL_WIDTH_MIN, startWidth - (move.clientX - startX))
+				);
+				this.panelWidth = next;
+				this.applyPanelLayout();
+				this.persistSession(false);
+			};
+			const onUp = (): void => {
+				handle.doc.removeEventListener('pointermove', onMove);
+				handle.doc.removeEventListener('pointerup', onUp);
+				this.sessionStore.flush();
+			};
+			handle.doc.addEventListener('pointermove', onMove);
+			handle.doc.addEventListener('pointerup', onUp);
+		});
+	}
+
+	private applyPanelLayout(): void {
+		this.contentEl.toggleClass('is-panel-open', this.panelOpen);
+		this.panelEl?.style.setProperty('--lantai-panel-width', `${String(this.panelWidth)}px`);
+		if (this.panelEl) {
+			this.panelEl.style.width = `${String(this.panelWidth)}px`;
+			this.panelEl.style.display = this.panelOpen ? '' : 'none';
+		}
+		if (this.resizerEl) {
+			this.resizerEl.style.display = this.panelOpen ? '' : 'none';
+		}
+	}
+
+	private closePanel(): void {
+		this.panelOpen = false;
+		this.selectedKey = null;
+		this.panel?.clear();
+		this.highlightSelected();
+		this.applyPanelLayout();
+		this.persistSession(true);
+	}
+
+	private restoreSelectedPanel(): void {
+		if (!this.panelOpen || this.selectedKey === null) {
+			this.applyPanelLayout();
+			return;
+		}
+		const card = this.findCard(this.selectedKey);
+		if (card === undefined) {
+			this.closePanel();
+			return;
+		}
+		const image = this.loadedImages.get(this.selectedKey);
+		const url = this.previewUrls.get(this.selectedKey) ?? '';
+		if (image === undefined || this.source === undefined) {
+			this.applyPanelLayout();
+			return;
+		}
+		this.panel?.show(image, this.source, url);
+		this.highlightSelected();
+		this.applyPanelLayout();
+	}
+
+	private findCard(key: string): HTMLElement | undefined {
+		for (const child of this.gridEl?.children ?? []) {
+			if (child.instanceOf(HTMLElement) && child.dataset['objectKey'] === key) {
+				return child;
+			}
+		}
+		return undefined;
+	}
+
+	private async loadReferences(image: GalleryImage): Promise<RemoteImageReference[]> {
+		if (image.kind === 'vault') {
+			return this.findLocalReferences.find(image.key);
+		}
+		const url = this.previewUrls.get(image.key) ?? image.url ?? '';
+		if (url === '') {
+			return [];
+		}
+		return this.findReferences.find(url);
+	}
+
+	private async openNote(path: string): Promise<void> {
+		const file = this.app.vault.getFileByPath(path);
+		if (file === null) {
+			return;
+		}
+		await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
+	private patchCard(image: GalleryImage): void {
+		const previous = this.loadedImages.get(image.key);
+		this.loadedImages.set(image.key, previous === undefined ? image : { ...previous, ...image });
+		const card = this.findCard(image.key);
+		if (card === undefined) {
+			return;
+		}
+		const caption = card.querySelector('.lantai-gallery-caption');
+		caption?.remove();
+		this.renderCardCaption(card, image);
+	}
+
+	private renderCardCaption(cardEl: HTMLElement, image: GalleryImage): void {
+		const caption = cardEl.createDiv('lantai-gallery-caption');
+		caption.createDiv({ cls: 'lantai-gallery-name', text: displayTitle(image) });
+		const meta: string[] = [];
+		if (image.size !== undefined) {
+			meta.push(formatBytes(image.size));
+		}
+		if (image.timestamp !== undefined) {
+			meta.push(formatGalleryDate(image.timestamp));
+		}
+		if (meta.length > 0) {
+			caption.createDiv({ cls: 'lantai-gallery-meta', text: meta.join(' · ') });
+		}
+		const tags = image.tags ?? [];
+		if (tags.length === 0) {
+			return;
+		}
+		const row = caption.createDiv('lantai-gallery-tags');
+		const visible = tags.slice(0, CARD_VISIBLE_TAG_COUNT);
+		for (const name of visible) {
+			const chip = row.createEl('button', { cls: 'lantai-gallery-tag', text: name });
+			chip.addEventListener('click', (event) => {
+				event.stopPropagation();
+				this.filterByTag(name);
+			});
+		}
+		if (tags.length > CARD_VISIBLE_TAG_COUNT) {
+			row.createSpan({ text: `+${String(tags.length - CARD_VISIBLE_TAG_COUNT)}` });
+		}
+	}
+
+	private filterByTag(name: string): void {
+		const query = galleryTagSearchQuery(name);
+		this.searchComponent?.setValue(query);
+		this.query = query;
+		this.reset()
+			.then((loaded) => {
+				if (!loaded) {
+					this.presentLoadFailure();
+				}
+			})
+			.catch((error: unknown) => {
+				this.showError(error);
+			});
+	}
+
+	private highlightSelected(): void {
+		for (const child of this.gridEl?.children ?? []) {
+			if (child.instanceOf(HTMLElement)) {
+				child.toggleClass('is-selected', child.dataset['objectKey'] === this.selectedKey);
+			}
+		}
+	}
 }
 /* eslint-enable perfectionist/sort-classes -- lifecycle and loading steps stay in execution order. */
 
 /** Exposed for unit tests. */
+export function galleryTagSearchQuery(name: string): string {
+	return `tag:${name}`;
+}
+
+/** Exposed for unit tests. */
 export function getObjectFileName(objectKey: string): string {
 	return objectKey.split('/').at(-1) ?? objectKey;
+}
+
+export function parseSortOption(optionId: string): GallerySortOption {
+	if (optionId === 'oldest') {
+		return { order: 'asc', sort: 'createdAt' };
+	}
+	if (optionId === 'name') {
+		return { order: 'asc', sort: 'name' };
+	}
+	if (optionId === 'size') {
+		return { order: 'desc', sort: 'size' };
+	}
+	return { order: 'desc', sort: 'createdAt' };
 }
 
 /** Exposed for unit tests. */
@@ -1173,4 +1469,33 @@ export function selectGalleryProfile(
 		return undefined;
 	}
 	return profiles.find((profile) => profile.id === galleryProfileId);
+}
+
+export function sortOptionId(sort: GallerySortKey, order: GallerySortOrder): string {
+	if (sort === 'createdAt' && order === 'asc') {
+		return 'oldest';
+	}
+	if (sort === 'name') {
+		return 'name';
+	}
+	if (sort === 'size') {
+		return 'size';
+	}
+	return 'newest';
+}
+
+function bucketGalleryProfiles(profiles: readonly StorageProfile[]): StorageProfile[] {
+	return profiles.filter((profile) => profile.provider !== 'lantai');
+}
+
+function displayTitle(image: GalleryImage): string {
+	const title = image.title?.trim();
+	if (title !== undefined && title !== '') {
+		return title;
+	}
+	return image.name;
+}
+
+function isGallerySourceKind(value: string): value is GallerySourceKind {
+	return value === 'bucket' || value === 'lantai' || value === 'recent' || value === 'vault';
 }

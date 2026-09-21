@@ -4,8 +4,8 @@ import {
 	it
 } from 'vitest';
 
-import { ImageLinkParser } from '../link/image-link-parser.ts';
-import { findRenderedImageRef } from './resolve-rendered-image.ts';
+import { ImageLinkParser } from '../../../link/image-link-parser.ts';
+import { findRenderedImageRef } from '../resolve-rendered-image.ts';
 
 /**
  * Compatibility suite kept next to the controller; matching logic lives in

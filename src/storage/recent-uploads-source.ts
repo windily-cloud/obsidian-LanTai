@@ -11,6 +11,8 @@ import type {
 
 import { probeObjectExists } from './probe-object-exists.ts';
 
+export type ResolveBrowserStorage = (profileId: string) => Promise<ObjectStorageBrowser>;
+
 export class RecentUploadsSource implements GalleryDataSource {
 	public readonly kind = 'recent' as const;
 	private filtered: GalleryImage[] = [];
@@ -18,13 +20,13 @@ export class RecentUploadsSource implements GalleryDataSource {
 
 	public constructor(
 		private readonly history: UploadHistoryStore,
-		private readonly storage: ObjectStorageBrowser,
-		private readonly profileId: string
+		private readonly resolveStorage: ResolveBrowserStorage
 	) {}
 
 	public async delete(image: GalleryImage): Promise<void> {
-		await this.storage.delete(image.key);
-		await this.history.removeByKey(this.profileId, image.key);
+		const storage = await this.resolveStorage(image.profileId ?? '');
+		await storage.delete(image.key);
+		await this.history.removeByKey(image.profileId ?? '', image.key);
 	}
 
 	public loadMore(limit: number): Promise<GalleryImagePage> {
@@ -34,20 +36,26 @@ export class RecentUploadsSource implements GalleryDataSource {
 	}
 
 	public purge(image: GalleryImage): Promise<void> {
-		return this.history.removeByKey(this.profileId, image.key);
+		return this.history.removeByKey(image.profileId ?? '', image.key);
 	}
 
 	public setQuery(query: string): void {
 		this.offset = 0;
 		const normalizedQuery = query.trim().toLowerCase();
 		this.filtered = this.history
-			.list(this.profileId)
+			.listAll()
 			.filter((entry) => !normalizedQuery || entry.key.toLowerCase().includes(normalizedQuery))
+			.slice()
+			.sort((left, right) => right.timestamp - left.timestamp)
 			.map(toGalleryImage);
 	}
 
-	public thumbnailUrl(image: GalleryImage): Promise<string> {
-		return this.storage.buildPublicUrl(image.key);
+	public async thumbnailUrl(image: GalleryImage): Promise<string> {
+		if (image.url !== undefined && image.url !== '') {
+			return image.url;
+		}
+		const storage = await this.resolveStorage(image.profileId ?? '');
+		return storage.buildPublicUrl(image.key);
 	}
 
 	/**
@@ -55,7 +63,8 @@ export class RecentUploadsSource implements GalleryDataSource {
 	 * Permission/probe failures resolve to `true` so broken-image cleanup does not purge.
 	 */
 	public async verify(image: GalleryImage): Promise<boolean> {
-		const result = await probeObjectExists(this.storage, image.key);
+		const storage = await this.resolveStorage(image.profileId ?? '');
+		const result = await probeObjectExists(storage, image.key);
 		return result !== false;
 	}
 }

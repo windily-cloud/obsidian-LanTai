@@ -51,9 +51,15 @@ describe('PluginSettings', () => {
 		expect(json.localPathTemplate).toBe('${originalName}.${ext}');
 		expect(json.linkStyle).toBe('wiki');
 		expect(json.deleteSourceAfterUpload).toBe(false);
-		expect(json.galleryProfileId).toBeNull();
-		expect(json.gallerySource).toBe('recent');
+		expect(json).not.toHaveProperty('galleryProfileId');
+		expect(json).not.toHaveProperty('gallerySource');
 		expect(json).not.toHaveProperty('galleryUploadKeyTemplate');
+		expect(json).not.toHaveProperty('layout');
+		expect(json).not.toHaveProperty('panelOpen');
+		expect(json).not.toHaveProperty('panelWidth');
+		expect(json).not.toHaveProperty('selectedKey');
+		expect(json).not.toHaveProperty('sortKey');
+		expect(json).not.toHaveProperty('sortOrder');
 		expect(json).not.toHaveProperty('uploadHistory');
 	});
 });
