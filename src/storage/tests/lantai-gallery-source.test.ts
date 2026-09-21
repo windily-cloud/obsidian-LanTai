@@ -187,6 +187,54 @@ describe('LanTaiGallerySource', () => {
 		expect(requestAt(transport, 0).url).not.toContain('/search');
 	});
 
+	it('默认按 createdAt desc 请求列表', async () => {
+		const transport = new FakeTransport();
+		transport.push(page([]));
+		await createSource(transport).loadMore(48);
+
+		const url = requestAt(transport, 0).url;
+		expect(url).toContain('sort=createdAt');
+		expect(url).toContain('order=desc');
+	});
+
+	it('setSort 后下一页使用新排序且不带旧 cursor', async () => {
+		const transport = new FakeTransport();
+		transport.push(page([attachment({ key: 'a.webp' })], 'c1'));
+		transport.push(page([attachment({ key: 'b.webp' })]));
+		const source = createSource(transport);
+		await source.loadMore(1);
+		source.setSort('name', 'asc');
+		await source.loadMore(48);
+
+		const url = requestAt(transport, 1).url;
+		expect(url).toContain('sort=name');
+		expect(url).toContain('order=asc');
+		expect(url).not.toContain('cursor=c1');
+	});
+
+	it('search 按页消费 cursor，不一次拉尽', async () => {
+		const transport = new FakeTransport();
+		transport.push(page([attachment({ key: 'a.webp' })], 'c1'));
+		transport.push(page([attachment({ key: 'b.webp' })]));
+		const source = createSource(transport);
+		source.setQuery('tag:风景');
+		source.setSort('size', 'desc');
+
+		const first = await source.loadMore(1);
+
+		expect(first.items.map((item) => item.key)).toEqual(['a.webp']);
+		expect(first.hasMore).toBe(true);
+		expect(transport.requests).toHaveLength(1);
+		const url = requestAt(transport, 0).url;
+		expect(url).toContain('/api/v1/objects/search?');
+		expect(url).toContain('sort=size');
+		expect(url).toContain('order=desc');
+
+		const second = await source.loadMore(1);
+		expect(second.items.map((item) => item.key)).toEqual(['b.webp']);
+		expect(transport.requests).toHaveLength(2);
+	});
+
 	it('delete 走对象键单段编码的 DELETE', async () => {
 		const transport = new FakeTransport();
 		transport.push({ status: 204 });

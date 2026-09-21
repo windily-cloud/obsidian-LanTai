@@ -4,6 +4,8 @@ import type {
 	ObjectStorageTransport
 } from './object-storage-transport.ts';
 import type {
+	GallerySortKey,
+	GallerySortOrder,
 	ObjectStat,
 	ObjectStorage,
 	ObjectStorageBrowser,
@@ -77,7 +79,17 @@ interface LanTaiObjectStorageConstructorParams {
 interface LanTaiObjectStorageListOptions {
 	readonly cursor?: string;
 	readonly limit?: number;
+	readonly order?: GallerySortOrder;
 	readonly prefix?: string;
+	readonly sort?: GallerySortKey;
+}
+
+interface LanTaiObjectStorageSearchPageParams {
+	readonly cursor?: string;
+	readonly limit?: number;
+	readonly order?: GallerySortOrder;
+	readonly query: string;
+	readonly sort?: GallerySortKey;
 }
 
 interface LanTaiPage {
@@ -148,22 +160,13 @@ export class LanTaiObjectStorage implements ObjectStorage, ObjectStorageBrowser 
 	}
 
 	public async list(options?: LanTaiObjectStorageListOptions): Promise<ObjectStorageListResult> {
-		const response = await this.send(
-			'GET',
-			this.url('/api/v1/objects', {
-				...(options?.cursor === undefined ? {} : { cursor: options.cursor }),
-				...(options?.limit === undefined ? {} : { limit: String(options.limit) }),
-				...(options?.prefix === undefined || options.prefix === ''
-					? {}
-					: { prefix: options.prefix })
-			})
-		);
-		this.assertOk(response);
-		const page = parseJson(response) as LanTaiPage;
-		return {
-			...(page.cursor === undefined ? {} : { cursor: page.cursor }),
-			items: page.items.map(toFile)
-		};
+		const hasPrefix = options?.prefix !== undefined && options.prefix !== '';
+		return this.fetchPage('/api/v1/objects', {
+			...(options?.cursor === undefined ? {} : { cursor: options.cursor }),
+			...(options?.limit === undefined ? {} : { limit: String(options.limit) }),
+			...(hasPrefix ? { prefix: options.prefix } : {}),
+			...(hasPrefix ? {} : sortQuery(options?.sort, options?.order))
+		});
 	}
 
 	/** 移除标签。注意：后端的 `name` 走 JSON body，而不是查询参数。 */
@@ -176,26 +179,30 @@ export class LanTaiObjectStorage implements ObjectStorage, ObjectStorageBrowser 
 	}
 
 	public async *search(query: string): AsyncGenerator<ObjectStorageFile, void> {
-		const parsed = parseLanTaiSearchQuery(query);
-		const path = isEmptySearch(parsed) ? '/api/v1/objects' : '/api/v1/objects/search';
 		let cursor: string | undefined;
 		do {
-			const response = await this.send(
-				'GET',
-				this.url(path, {
-					...(cursor === undefined ? {} : { cursor }),
-					limit: String(DEFAULT_PAGE_SIZE),
-					...(parsed.keyword === '' ? {} : { q: parsed.keyword }),
-					...(parsed.tag === '' ? {} : { tag: parsed.tag })
-				})
-			);
-			this.assertOk(response);
-			const page = parseJson(response) as LanTaiPage;
+			const page = await this.searchPage({
+				...(cursor === undefined ? {} : { cursor }),
+				limit: DEFAULT_PAGE_SIZE,
+				query
+			});
 			for (const item of page.items) {
-				yield toFile(item);
+				yield item;
 			}
 			cursor = page.cursor;
 		} while (cursor !== undefined);
+	}
+
+	public searchPage(params: LanTaiObjectStorageSearchPageParams): Promise<ObjectStorageListResult> {
+		const parsed = parseLanTaiSearchQuery(params.query);
+		const path = isEmptySearch(parsed) ? '/api/v1/objects' : '/api/v1/objects/search';
+		return this.fetchPage(path, {
+			...(params.cursor === undefined ? {} : { cursor: params.cursor }),
+			limit: String(params.limit ?? DEFAULT_PAGE_SIZE),
+			...(parsed.keyword === '' ? {} : { q: parsed.keyword }),
+			...(parsed.tag === '' ? {} : { tag: parsed.tag }),
+			...sortQuery(params.sort, params.order)
+		});
 	}
 
 	public async stat(objectKey: string): Promise<null | ObjectStat> {
@@ -246,6 +253,19 @@ export class LanTaiObjectStorage implements ObjectStorage, ObjectStorageBrowser 
 			return;
 		}
 		throw requestError(response);
+	}
+
+	private async fetchPage(
+		path: string,
+		query: Record<string, string>
+	): Promise<ObjectStorageListResult> {
+		const response = await this.send('GET', this.url(path, query));
+		this.assertOk(response);
+		const page = parseJson(response) as LanTaiPage;
+		return {
+			...(page.cursor === undefined ? {} : { cursor: page.cursor }),
+			items: page.items.map(toFile)
+		};
 	}
 
 	private objectUrl(objectKey: string): string {
@@ -301,6 +321,19 @@ function requestError(response: ObjectStorageResponse): Error {
 			status: response.status
 		}
 	);
+}
+
+function sortQuery(
+	sort: GallerySortKey | undefined,
+	order: GallerySortOrder | undefined
+): Record<string, string> {
+	if (sort === undefined) {
+		return {};
+	}
+	return {
+		sort,
+		...(order === undefined ? {} : { order })
+	};
 }
 
 function toFile(dto: LanTaiAttachmentDto): ObjectStorageFile {

@@ -1,3 +1,7 @@
+export type GallerySortKey = 'createdAt' | 'name' | 'size';
+
+export type GallerySortOrder = 'asc' | 'desc';
+
 export interface ObjectStat {
 	readonly size: number;
 }
@@ -71,5 +75,7 @@ export interface ObjectStorageUploadResult {
 interface ObjectStorageListOptions {
 	readonly cursor?: string;
 	readonly limit?: number;
+	readonly order?: GallerySortOrder;
 	readonly prefix?: string;
+	readonly sort?: GallerySortKey;
 }

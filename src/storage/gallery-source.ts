@@ -1,4 +1,8 @@
 import type { StorageProfile } from '../settings/sections/s3/storage-profile.ts';
+import type {
+	GallerySortKey,
+	GallerySortOrder
+} from './object-storage.ts';
 import type { StorageSecrets } from './storage-secrets.ts';
 
 export interface CreateGallerySourceInput {
@@ -14,6 +18,7 @@ export interface GalleryDataSource {
 	/** Remove from the local index only (e.g. broken image cleanup). Never touches the remote. */
 	purge(image: GalleryImage): Promise<void>;
 	setQuery(query: string): void;
+	setSort?(sort: GallerySortKey, order: GallerySortOrder): void;
 	thumbnailUrl(image: GalleryImage): Promise<string> | string;
 	verify(image: GalleryImage): Promise<boolean>;
 }
@@ -51,6 +56,11 @@ export interface GalleryImagePage {
 	readonly hasMore: boolean;
 	readonly items: GalleryImage[];
 }
+
+export type {
+	GallerySortKey,
+	GallerySortOrder
+} from './object-storage.ts';
 
 /** 兰台源额外具备的管理能力（对齐 web 控制台：改元数据、增删标签）。 */
 export interface GalleryManageableSource {

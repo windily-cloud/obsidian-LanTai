@@ -172,6 +172,45 @@ describe('LanTaiObjectStorage', () => {
 		]);
 		expect(requestAt(transport, 0).url).toContain('limit=48');
 		expect(requestAt(transport, 0).url).toContain('prefix=notes%2F');
+		expect(requestAt(transport, 0).url).not.toContain('sort=');
+	});
+
+	it('list 无 prefix 时带上 sort 与 order', async () => {
+		const transport = new FakeTransport();
+		transport.push({ body: JSON.stringify({ items: [] }), status: 200 });
+
+		await createStorage(transport).list({ limit: 48, order: 'asc', sort: 'createdAt' });
+
+		const url = requestAt(transport, 0).url;
+		expect(url).toContain('sort=createdAt');
+		expect(url).toContain('order=asc');
+	});
+
+	it('searchPage 带 sort 且只取一页', async () => {
+		const transport = new FakeTransport();
+		transport.push({
+			body: JSON.stringify({ cursor: 'c1', items: [attachment({ key: 'a.png' })] }),
+			status: 200
+		});
+		transport.push({
+			body: JSON.stringify({ items: [attachment({ key: 'b.png' })] }),
+			status: 200
+		});
+
+		const page = await createStorage(transport).searchPage({
+			limit: 1,
+			order: 'desc',
+			query: 'tag:风景',
+			sort: 'size'
+		});
+
+		expect(page.items.map((item) => item.key)).toEqual(['a.png']);
+		expect(page.cursor).toBe('c1');
+		expect(transport.requests).toHaveLength(1);
+		const url = requestAt(transport, 0).url;
+		expect(url).toContain('/api/v1/objects/search?');
+		expect(url).toContain('sort=size');
+		expect(url).toContain('order=desc');
 	});
 
 	it('search 无关键词无标签时退化为 list', async () => {
