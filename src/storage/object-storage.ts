@@ -34,6 +34,8 @@ export interface ObjectStorageFile {
 	image?: ObjectStorageImageMetadata;
 	key: string;
 	lastModified?: number;
+	/** 仅带元数据的后端（兰台）提供：原始文件名（`originalName`），不是对象键。 */
+	name?: null | string;
 	/** 仅带元数据的后端（兰台）提供：压缩前字节数。 */
 	originalSize?: number;
 	/** 仅带元数据的后端（兰台）提供：是否经过压缩管线。 */

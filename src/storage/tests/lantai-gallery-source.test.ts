@@ -106,7 +106,7 @@ describe('LanTaiGallerySource', () => {
 				image: undefined,
 				key: '1758000000000.webp',
 				kind: 'lantai',
-				name: '1758000000000.webp',
+				name: 'photo.png',
 				originalSize: undefined,
 				processed: true,
 				profileId: 'profile-lantai',
@@ -118,6 +118,15 @@ describe('LanTaiGallerySource', () => {
 			}
 		]);
 		expect(result.hasMore).toBe(false);
+	});
+
+	it('DTO 无 name 时回退到对象键末段', async () => {
+		const transport = new FakeTransport();
+		transport.push(page([attachment({ name: null })]));
+
+		const item = firstItem(await createSource(transport).loadMore(48));
+
+		expect(item.name).toBe('1758000000000.webp');
 	});
 
 	it('带 cursor 时继续翻页', async () => {

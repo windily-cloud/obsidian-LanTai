@@ -17,9 +17,10 @@ import { isImageKey } from '../path/image-extension.ts';
 /**
  * 兰台源的画廊数据源。
  *
- * 与 `BucketGallerySource` 的差别：列表项自带 `url` / `title` / `description` / `tags`
- * （后端 Phase 1 的 Bearer 面已对齐 session 面），因此缩略图不需要逐项换取 URL，
- * 详情面板也不需要额外请求。删除是软删（7 天回收期），与 S3 的硬删语义不同。
+ * 与 `BucketGallerySource` 的差别：列表项自带 `url` / `title` / `description` / `tags` /
+ * `name`（原始文件名，不是雪花 key；后端 Phase 1 的 Bearer 面已对齐 session 面），
+ * 因此缩略图不需要逐项换取 URL，详情面板也不需要额外请求。删除是软删（7 天回收期），
+ * 与 S3 的硬删语义不同。
  *
  * 额外实现 `GalleryManageableSource`，提供 web 控制台同款的元数据与标签编辑。
  */
@@ -131,12 +132,20 @@ export class LanTaiGallerySource implements GalleryDataSource, GalleryManageable
 	}
 }
 
+function galleryDisplayName(file: ObjectStorageFile): string {
+	const original = file.name?.trim();
+	if (original !== undefined && original !== '') {
+		return original;
+	}
+	return file.key.split('/').at(-1) ?? file.key;
+}
+
 function toGalleryImage(file: ObjectStorageFile, profileId: string): GalleryImage {
 	return {
 		description: file.description ?? null,
 		key: file.key,
 		kind: 'lantai',
-		name: file.key.split('/').at(-1) ?? file.key,
+		name: galleryDisplayName(file),
 		profileId,
 		size: file.size,
 		tags: file.tags ?? [],

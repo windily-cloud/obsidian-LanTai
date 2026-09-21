@@ -45,6 +45,7 @@ interface LanTaiAttachmentDto {
 	readonly description?: null | string;
 	readonly image?: LanTaiImageMetadata;
 	readonly key: string;
+	readonly name?: null | string;
 	readonly originalSize?: number;
 	readonly processed?: boolean;
 	readonly size: number;
@@ -343,6 +344,7 @@ function toFile(dto: LanTaiAttachmentDto): ObjectStorageFile {
 		...(Number.isNaN(timestamp) ? {} : { lastModified: timestamp }),
 		// 列表端点已 join 标签（后端 Phase 1），这里透传给画廊详情弹窗。
 		description: dto.description ?? null,
+		...(dto.name === undefined || dto.name === null ? {} : { name: dto.name }),
 		size: dto.size,
 		tags: dto.tags ?? [],
 		title: dto.title ?? null,

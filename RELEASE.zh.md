@@ -60,7 +60,7 @@ npm run version -- 0.2.0 --no-release
 
 ## 社区插件审查说明
 
-兰台为 `isDesktopOnly: true`。Obsidian 自动审查可能对 Node `fs` / `child_process`、剪贴板访问、以及 vault 全库枚举给出 Warning。这些能力服务于桌面图床流程（系统剪贴板、在资源管理器中显示、用默认应用打开、跨笔记检查图片引用等），属于预期行为，不视为需删除的缺陷。
+兰台为 `isDesktopOnly: false`（上传 / 本地化 / 画廊可在移动端使用）。Obsidian 自动审查仍可能对 Node `fs` / `child_process`、剪贴板访问、以及 vault 全库枚举给出 Warning。这些能力服务于**桌面端**图床流程（系统剪贴板、在资源管理器中显示、用默认应用打开、迁移向导、跨笔记检查图片引用等），属于预期行为，不视为需删除的缺陷。仅桌面 UI（迁移向导、部分文件菜单项）用 `Platform.isMobile` 门控。
 
 ## 发布之后
 

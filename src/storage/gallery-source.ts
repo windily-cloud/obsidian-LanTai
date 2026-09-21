@@ -30,6 +30,7 @@ export interface GalleryImage {
 	image?: GalleryImageMetadata;
 	key: string;
 	kind: GallerySourceKind;
+	/** 展示名：兰台为原始文件名（DTO `name`），缺省时回退对象键末段。 */
 	name: string;
 	/** 仅兰台源提供：压缩前字节数。 */
 	originalSize?: number;

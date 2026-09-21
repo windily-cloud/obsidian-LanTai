@@ -60,7 +60,7 @@ Useful flags (each feature is **on** by default unless noted; `--no-*` turns it 
 
 ## Community plugin review notes
 
-LanTai is `isDesktopOnly: true`. Obsidian’s automated review may warn about Node `fs` / `child_process`, clipboard access, and vault enumeration. Those are required for desktop image workflows (system clipboard, reveal-in-folder, open-with-default-app, and “still referenced?” checks across notes). Treat them as expected for this plugin, not as defects to remove.
+LanTai is `isDesktopOnly: false` (upload / localize / gallery work on mobile). Obsidian’s automated review may still warn about Node `fs` / `child_process`, clipboard access, and vault enumeration. Those are required for **desktop** image workflows (system clipboard, reveal-in-folder, open-with-default-app, the migration wizard, and “still referenced?” checks across notes). Treat them as expected for this plugin, not as defects to remove. Desktop-only UI (migration, some file-menu items) is gated with `Platform.isMobile`.
 
 ## After publish
 
