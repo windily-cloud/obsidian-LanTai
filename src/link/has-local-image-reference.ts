@@ -26,7 +26,15 @@ export interface NoteImageContent {
  * 远程 URL（含兰台雪花 CDN）一律不算本地引用；`exclude` 用于忽略正在上传的那一处。
  */
 export function hasLocalImageReference(input: HasLocalImageReferenceInput): boolean {
+	return listLocalImageReferencePaths(input).length > 0;
+}
+
+/**
+ * 列出仍引用 `localPath` 的笔记路径（去重，保序）。
+ */
+export function listLocalImageReferencePaths(input: HasLocalImageReferenceInput): string[] {
 	const samePath = input.samePath ?? ((left: string, right: string): boolean => left === right);
+	const paths: string[] = [];
 	for (const note of input.notes) {
 		for (const ref of input.parse(note.content)) {
 			if (ref.isRemote) {
@@ -40,9 +48,12 @@ export function hasLocalImageReference(input: HasLocalImageReferenceInput): bool
 				continue;
 			}
 			if (input.resolvePath(ref.target, note.path) === input.localPath) {
-				return true;
+				if (!paths.some((path) => samePath(path, note.path))) {
+					paths.push(note.path);
+				}
+				break;
 			}
 		}
 	}
-	return false;
+	return paths;
 }

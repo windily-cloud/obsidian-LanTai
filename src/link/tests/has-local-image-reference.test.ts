@@ -6,7 +6,10 @@ import {
 
 import type { HasLocalImageReferenceInput } from '../has-local-image-reference.ts';
 
-import { hasLocalImageReference } from '../has-local-image-reference.ts';
+import {
+	hasLocalImageReference,
+	listLocalImageReferencePaths
+} from '../has-local-image-reference.ts';
 import { ImageLinkParser } from '../image-link-parser.ts';
 
 const LOCAL_PATH = 'Journal/photo.png';
@@ -63,6 +66,18 @@ describe('hasLocalImageReference', () => {
 				{ content: 'see ![[photo.png]]', path: 'Journal/Other.md' }
 			]
 		}))).toBe(true);
+	});
+});
+
+describe('listLocalImageReferencePaths', () => {
+	it('lists unique note paths that embed the file', () => {
+		expect(listLocalImageReferencePaths(baseInput({
+			notes: [
+				{ content: '![[photo.png]]', path: NOTE_PATH },
+				{ content: 'see ![[photo.png]] again ![[photo.png]]', path: 'Journal/Other.md' },
+				{ content: 'nope', path: 'Journal/Skip.md' }
+			]
+		}))).toEqual([NOTE_PATH, 'Journal/Other.md']);
 	});
 });
 
