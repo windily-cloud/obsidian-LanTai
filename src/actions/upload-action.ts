@@ -10,6 +10,7 @@ import type { UploadHistoryEntry } from '../storage/upload-history.ts';
 import type { ActionResult } from './action-result.ts';
 
 import { t } from '../i18n/index.ts';
+import { imageFileName } from '../path/image-template-context.ts';
 import { probeObjectExists } from '../storage/probe-object-exists.ts';
 
 export interface KnownUpload {
@@ -77,7 +78,11 @@ export class UploadAction {
 				uploadedKey = objectKey;
 			} else {
 				const bytes = await input.vault.readBinary(input.localPath);
-				const uploaded = await input.storage.upload({ bytes, objectKey });
+				const uploaded = await input.storage.upload({
+					bytes,
+					objectKey,
+					originalName: imageFileName(input.localPath)
+				});
 				publicUrl = uploaded.url;
 				uploadedKey = uploaded.key;
 				didUpload = true;

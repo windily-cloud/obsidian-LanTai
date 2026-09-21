@@ -81,6 +81,7 @@ describe('UploadAction', () => {
 		expect(result.ok).toBe(true);
 		expect(note.getContent()).toBe('![](https://cdn.example.com/images/photo.png)');
 		expect(storage.uploadedKeys).toContain('images/photo.png');
+		expect(storage.uploads[0]?.originalName).toBe('photo.png');
 	});
 
 	it('preserves layout and size when rewriting the link', async () => {
@@ -303,6 +304,7 @@ describe('UploadAction', () => {
 			'![](https://cdn.example.com/images/Pasted%20image.png)'
 		);
 		expect(storage.uploadedKeys).toContain('images/Pasted image.png');
+		expect(storage.uploads[0]?.originalName).toBe('Pasted image.png');
 	});
 
 	it('rewrites only the selected repeated occurrence', async () => {

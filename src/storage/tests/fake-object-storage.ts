@@ -33,6 +33,8 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 	public readonly deletedKeys: string[] = [];
 	/** Exposed for unit tests. */
 	public readonly uploadedKeys: string[] = [];
+	/** Exposed for unit tests. */
+	public readonly uploads: ObjectStorageUploadInput[] = [];
 	private readonly existing: Set<string>;
 	private readonly existsError: Error | undefined;
 	private readonly listError: Error | undefined;
@@ -128,6 +130,7 @@ export class FakeObjectStorage implements ObjectStorage, ObjectStorageBrowser {
 		}
 		const key = this.uploadedObject?.key ?? input.objectKey;
 		const url = this.uploadedObject?.url ?? await this.buildPublicUrl(key);
+		this.uploads.push(input);
 		this.uploadedKeys.push(input.objectKey);
 		this.existing.add(key);
 		this.objectBytes.set(key, input.bytes);
