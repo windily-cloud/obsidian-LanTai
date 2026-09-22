@@ -312,12 +312,14 @@ function requestError(response: ObjectStorageResponse): Error {
 		: `HTTP ${String(response.status)}`;
 	const message = typeof body?.error?.message === 'string' ? body.error.message : '';
 	const retryAfterMs = parseRetryAfterMs(response.headers);
+	const cause = Object.assign(new Error(message), { code });
 	return new StorageRequestError(
 		'Provider',
 		message === ''
 			? t('errors.storageError', { code })
-			: t('errors.storageErrorWithMessage', { code, message }),
+			: message,
 		{
+			cause,
 			...(retryAfterMs === undefined ? {} : { retryAfterMs }),
 			status: response.status
 		}

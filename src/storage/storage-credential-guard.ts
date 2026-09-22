@@ -14,6 +14,14 @@ export function formatActionError(error: unknown): string {
 	if (isListAccessDenied(error)) {
 		return t('errors.galleryListAccessDenied');
 	}
+	if (hasErrorCode(error, 'QuotaExceeded')) {
+		const message = error.message.trim();
+		const generic = t('errors.storageError', { code: 'QuotaExceeded' });
+		if (message !== '' && message !== generic) {
+			return message;
+		}
+		return t('errors.quotaExceeded');
+	}
 	const code = readErrorCode(error);
 	if (code && (error.message === 'UnknownError' || error.message === code)) {
 		if (code === 'Unauthorized') {
@@ -54,6 +62,19 @@ export function validateStorageSecrets(
 		return t('errors.accessKeysSameValue');
 	}
 	return null;
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+	let current: unknown = error;
+	const seen = new Set<unknown>();
+	while (current instanceof Error && !seen.has(current)) {
+		seen.add(current);
+		if (readErrorCode(current) === code) {
+			return true;
+		}
+		current = current.cause;
+	}
+	return false;
 }
 
 function readErrorCode(error: Error): null | string {

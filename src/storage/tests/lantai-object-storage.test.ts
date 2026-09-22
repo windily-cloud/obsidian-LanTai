@@ -285,7 +285,10 @@ describe('LanTaiObjectStorage', () => {
 
 		await expect(
 			createStorage(transport).upload({ bytes: new Uint8Array([1]), objectKey: 'a.png' })
-		).rejects.toThrow(/QuotaExceeded.*Storage quota exceeded/u);
+		).rejects.toMatchObject({
+			cause: { code: 'QuotaExceeded' },
+			message: 'Storage quota exceeded'
+		});
 	});
 
 	it('非 JSON 错误体退回 HTTP 状态码', async () => {

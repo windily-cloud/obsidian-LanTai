@@ -113,13 +113,14 @@ function renderSummary(
 	new Setting(host)
 		.setName(t('settings.lantaiPlan'))
 		.setDesc(summary.plan.toUpperCase());
-	renderUsageBar(host, t('settings.lantaiStorage'), summary.usedBytes, summary.quotaBytes);
+	renderUsageBar(host, t('settings.lantaiStorage'), summary.usedBytes, summary.quotaBytes, false);
 	if (summary.trafficQuotaBytes > 0) {
 		renderUsageBar(
 			host,
 			t('settings.lantaiTraffic'),
 			summary.trafficUsedBytes,
-			summary.trafficQuotaBytes
+			summary.trafficQuotaBytes,
+			true
 		);
 	}
 
@@ -184,10 +185,25 @@ function renderSummaryHost(
 		});
 }
 
-function renderUsageBar(parent: HTMLElement, name: string, used: number, quota: number): void {
+function renderUsageBar(
+	parent: HTMLElement,
+	name: string,
+	used: number,
+	quota: number,
+	isTraffic: boolean
+): void {
+	const exhausted = quota > 0 && used >= quota;
+	const usedLabel = formatBytes(used);
+	const quotaLabel = formatBytes(quota);
+	const desc = exhausted
+		? t(isTraffic ? 'settings.lantaiTrafficExhausted' : 'settings.lantaiUsageExhausted', {
+			quota: quotaLabel,
+			used: usedLabel
+		})
+		: `${usedLabel} / ${quotaLabel}`;
 	new Setting(parent)
 		.setName(name)
-		.setDesc(`${formatBytes(used)} / ${formatBytes(quota)}`)
+		.setDesc(desc)
 		.setClass('lantai-usage-setting')
 		.addProgressBar((bar) => {
 			bar.setValue(usagePercent(used, quota));

@@ -172,14 +172,20 @@ export class CommandRegistrar {
 	private reportBatch(results: ActionResult[], action: 'localize' | 'upload'): void {
 		const failures = results.filter((result) => !result.ok);
 		if (failures.length > 0) {
+			const reason = failures
+				.map((result) => result.message)
+				.find((message) => message !== undefined && message !== '');
+			const vars = {
+				action: action === 'upload'
+					? t('commands.uploadActionName')
+					: t('commands.localizeActionName'),
+				failed: failures.length,
+				succeeded: results.length - failures.length
+			};
 			new Notice(
-				t('notices.batchFinished', {
-					action: action === 'upload'
-						? t('commands.uploadActionName')
-						: t('commands.localizeActionName'),
-					failed: failures.length,
-					succeeded: results.length - failures.length
-				})
+				reason === undefined
+					? t('notices.batchFinished', vars)
+					: t('notices.batchFinishedWithReason', { ...vars, reason })
 			);
 			return;
 		}

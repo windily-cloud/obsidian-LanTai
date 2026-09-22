@@ -9,6 +9,7 @@ import {
 	isListAccessDenied,
 	validateStorageSecrets
 } from '../storage-credential-guard.ts';
+import { StorageRequestError } from '../storage-request-error.ts';
 
 describe('validateStorageSecrets', () => {
 	it('rejects when both fields bind the same secret name', () => {
@@ -84,6 +85,22 @@ describe('formatActionError', () => {
 	it('passes through normal error messages', () => {
 		expect(formatActionError(new Error('Bucket not found'))).toBe(
 			'Bucket not found'
+		);
+	});
+
+	it('shows the server quota message instead of wrapping the provider code', () => {
+		const cause = Object.assign(new Error('存储空间已用尽（已用 100.0 MB / 配额 100.0 MB）。'), {
+			code: 'QuotaExceeded'
+		});
+		const error = new StorageRequestError('Provider', cause.message, { cause });
+		expect(formatActionError(error)).toBe(cause.message);
+	});
+
+	it('falls back to a quota explanation when the server message is missing', () => {
+		const cause = Object.assign(new Error(''), { code: 'QuotaExceeded' });
+		const error = new StorageRequestError('Provider', 'Storage error (QuotaExceeded).', { cause });
+		expect(formatActionError(error)).toBe(
+			'Storage is full. Delete images or upgrade your plan before uploading again.'
 		);
 	});
 });
