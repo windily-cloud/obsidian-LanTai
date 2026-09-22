@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.10
+
+- chore: 统一 JSON 为 tab 缩进
+- fix: 配额用尽时展示服务端原因，并在设置里标出用量已满
+
 ## 0.0.9
 
 - chore: 统一 JSON 为 tab 缩进
