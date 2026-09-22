@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.0.11
+
+- chore: 统一 JSON 为 tab 缩进
+- fix: 把纯布局名的 alt 当作布局并对齐实时预览，图片菜单改为捕获阶段
+
 ## 0.0.10
 
 - chore: 统一 JSON 为 tab 缩进
