@@ -72,7 +72,7 @@ describe('ImageLinkService', () => {
 		[
 			['![[image.png]]', 'center', '![[image.png|center]]'],
 			['![caption](image.png)', 'left', '![caption|left](image.png)'],
-			['![](https://cdn.example.com/image.png)', 'right', '![|right](https://cdn.example.com/image.png)']
+			['![](https://cdn.example.com/image.png)', 'right', '![right](https://cdn.example.com/image.png)']
 		] as const
 	)('sets %s layout to %s', (source, layout, expected) => {
 		const ref = service.parse(source)[0];
@@ -112,6 +112,10 @@ describe('ImageLinkService', () => {
 				'![caption|center|41x41](image.png)'
 			],
 			['![[image.png|left|41x41]]', '![[image.png|center|41x41]]'],
+			['![right|390](image.png)', '![center|390](image.png)'],
+			['![right|left|390](image.png)', '![center|390](image.png)'],
+			['![390](image.png)', '![center|390](image.png)'],
+			['![390|right](image.png)', '![center|390](image.png)'],
 			[
 				'![[image.png|100|left|right|alias]]',
 				'![[image.png|center|alias|100]]'
@@ -131,6 +135,10 @@ describe('ImageLinkService', () => {
 			['![|32x54|left](image.png)', 'left'],
 			['![|left|41x41](image.png)', 'left'],
 			['![caption|left|41x41|right](image.png)', 'left'],
+			['![right|390](image.png)', 'right'],
+			['![center|390](image.png)', 'center'],
+			['![390|left](image.png)', 'left'],
+			['![right|left|390](image.png)', 'right'],
 			['![[image.png|100|center|alias]]', 'center']
 		] as const
 	)('detects the first layout field in %s', (source, expected) => {
@@ -142,15 +150,26 @@ describe('ImageLinkService', () => {
 		expect(service.getLayout(ref)).toBe(expected);
 	});
 
-	it('preserves Markdown alt text that equals a layout name', () => {
+	it('treats a Markdown alt that is only a layout name as the layout', () => {
 		const source = '![left](image.png)';
 		const ref = service.parse(source)[0];
 		if (!ref) {
 			throw new Error('Expected image ref');
 		}
 
+		expect(service.getLayout(ref)).toBe('left');
+		expect(service.setLayout(source, ref, 'center')).toBe('![center](image.png)');
+	});
+
+	it('preserves a Markdown caption that merely starts with a layout name', () => {
+		const source = '![left side](image.png)';
+		const ref = service.parse(source)[0];
+		if (!ref) {
+			throw new Error('Expected image ref');
+		}
+
 		expect(service.getLayout(ref)).toBeNull();
-		expect(service.setLayout(source, ref, 'center')).toBe('![left|center](image.png)');
+		expect(service.setLayout(source, ref, 'center')).toBe('![left side|center](image.png)');
 	});
 
 	it('preserves a Markdown image title when setting layout', () => {

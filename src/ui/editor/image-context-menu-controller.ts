@@ -152,7 +152,8 @@ export class ImageContextMenuController {
 					const submenu = item
 						.setTitle(t('menu.copyPath'))
 						.setIcon('link')
-						.setSubmenu();
+						.setSubmenu()
+						.setUseNativeMenu(false);
 					submenu.addItem((pathItem) => {
 						pathItem
 							.setTitle(t('menu.copyVaultPath'))
@@ -194,7 +195,8 @@ export class ImageContextMenuController {
 					const submenu = item
 						.setTitle(t('menu.layout'))
 						.setIcon('panel-top')
-						.setSubmenu();
+						.setSubmenu()
+						.setUseNativeMenu(false);
 					for (
 						const layout of [
 							{ key: 'right' as const, title: t('menu.layoutRight') },
@@ -595,7 +597,10 @@ export class ImageContextMenuController {
 			if (view.getMode() === 'preview') {
 				return;
 			}
+			// Capture-phase only. Obsidian shows its image menu from a bubble
+			// Listener on the image wrapper; preventDefault does not cancel that.
 			event.preventDefault();
+			event.stopPropagation();
 			if (!view.file) {
 				new Notice(t('notices.openMarkdownNote'));
 				return;
@@ -709,7 +714,16 @@ export class ImageContextMenuController {
 			this.registerLongPress(ownerDocument);
 			return;
 		}
-		this.plugin.registerDomEvent(ownerDocument, 'contextmenu', (event) => this.handleContextMenu(event));
+		this.plugin.registerDomEvent(
+			ownerDocument,
+			'contextmenu',
+			(event) => {
+				this.handleContextMenu(event).catch((error: unknown) => {
+					this.reportError(error);
+				});
+			},
+			{ capture: true }
+		);
 	}
 
 	private menuPlatform(): MenuPlatformInput {

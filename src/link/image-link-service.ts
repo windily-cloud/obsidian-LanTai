@@ -8,7 +8,6 @@ import type {
 import { t } from '../i18n/index.ts';
 
 const IMAGE_LAYOUTS = new Set<ImageLayout>(['center', 'left', 'right']);
-const MARKDOWN_FIRST_LAYOUT_INDEX = 1;
 
 export class ImageLinkService {
 	public constructor(
@@ -64,7 +63,7 @@ export class ImageLinkService {
 	}
 
 	public getLayout(ref: ImageRef): ImageLayout | null {
-		const firstLayoutIndex = ref.kind === 'markdown' ? MARKDOWN_FIRST_LAYOUT_INDEX : 0;
+		const firstLayoutIndex = layoutSearchIndex(ref);
 		return ref.decorations.slice(firstLayoutIndex).find(isImageLayout) ?? null;
 	}
 
@@ -97,10 +96,8 @@ export class ImageLinkService {
 		if (content.slice(ref.start, ref.end) !== ref.source) {
 			throw new Error(t('errors.linkChangedBeforeLayout'));
 		}
-		const decorations = ref.kind === 'markdown' && ref.decorations.length === 0
-			? ['']
-			: [...ref.decorations];
-		const firstLayoutIndex = ref.kind === 'markdown' ? MARKDOWN_FIRST_LAYOUT_INDEX : 0;
+		const decorations = [...ref.decorations];
+		const firstLayoutIndex = layoutSearchIndex(ref);
 		const existingLayoutIndex = decorations.findIndex(
 			(decoration, index) => index >= firstLayoutIndex && isImageLayout(decoration)
 		);
@@ -137,6 +134,17 @@ function isImageLayout(value: string | undefined): value is ImageLayout {
 
 function isSizeDecoration(value: string): boolean {
 	return /^\d+$/.test(value) || /^\d+x\d+$/i.test(value);
+}
+
+function layoutSearchIndex(ref: ImageRef): number {
+	if (ref.kind !== 'markdown') {
+		return 0;
+	}
+	const first = ref.decorations[0];
+	if (first === undefined || first === '' || isImageLayout(first) || isSizeDecoration(first)) {
+		return 0;
+	}
+	return 1;
 }
 
 function moveSizeDecorationsToEnd(

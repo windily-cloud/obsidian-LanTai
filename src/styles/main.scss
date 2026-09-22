@@ -501,11 +501,30 @@ $lantai-image-layouts: (
 	}
 }
 
+// Live Preview puts the decoration on the inner img. The widget that occupies
+// the line is div.image-embed, which Obsidian sizes with inline-flex + fit-content.
+@mixin lantai-embed-img-layout($layout) {
+	&:has(img[alt='#{$layout}']),
+	&:has(img[alt^='#{$layout}|']),
+	&:has(img[alt$='|#{$layout}']),
+	&:has(img[alt*='|#{$layout}|']) {
+		@content;
+	}
+}
+
 @each $layout, $margin-inline in $lantai-image-layouts {
 	:is(.markdown-source-view, .markdown-preview-view, .markdown-rendered) {
 		.internal-embed.image-embed {
 			@include lantai-alt-layout($layout) {
 				display: block;
+				margin-inline: $margin-inline;
+				width: fit-content;
+			}
+		}
+
+		.cm-line div.image-embed {
+			@include lantai-embed-img-layout($layout) {
+				display: flex;
 				margin-inline: $margin-inline;
 				width: fit-content;
 			}
