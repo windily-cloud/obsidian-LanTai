@@ -17,7 +17,7 @@ export function listMarkdownFilesInFolders(app: App, folders: readonly string[])
 		return uniqueMarkdownPaths(
 			app.vault.getMarkdownFiles()
 				.map((file) => file.path)
-				.filter((path) => !isObsidianPath(path))
+				.filter((path) => !isObsidianPath(path, app.vault.configDir))
 		);
 	}
 	const paths: string[] = [];
@@ -28,7 +28,7 @@ export function listMarkdownFilesInFolders(app: App, folders: readonly string[])
 			continue;
 		}
 		Vault.recurseChildren(folder, (child) => {
-			if (!(child instanceof TFile) || child.extension !== 'md' || isObsidianPath(child.path)) {
+			if (!(child instanceof TFile) || child.extension !== 'md' || isObsidianPath(child.path, app.vault.configDir)) {
 				return;
 			}
 			if (seen.has(child.path)) {

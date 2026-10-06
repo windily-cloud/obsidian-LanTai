@@ -222,7 +222,7 @@ class MigrationModal extends Modal {
 					if (value === FOLDER_PICKER_NONE) {
 						return;
 					}
-					this.folders = addMigrationFolder(this.folders, value);
+					this.folders = addMigrationFolder(this.folders, value, this.app.vault.configDir);
 					this.render();
 				});
 			});
@@ -384,7 +384,7 @@ class MigrationModal extends Modal {
 			this.render();
 			return;
 		}
-		const parsed = resolveMigrationFolders(this.folders);
+		const parsed = resolveMigrationFolders(this.folders, this.app.vault.configDir);
 		if (!parsed.ok) {
 			this.error = parsed.message;
 			this.render();

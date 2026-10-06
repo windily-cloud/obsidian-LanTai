@@ -10,6 +10,7 @@ import {
 	assertMigrationFoldersExist,
 	availableMigrationFolderPaths,
 	isNoteInSelectedFolders,
+	isObsidianPath,
 	MIGRATION_ALL_FOLDERS,
 	migrationFolderLabel,
 	resolveMigrationFolders
@@ -99,3 +100,31 @@ describe('migrationFolderLabel', () => {
 		expect(migrationFolderLabel('Journal')).toBe('Journal');
 	});
 });
+
+describe('isObsidianPath', () => {
+	it('defaults to .obsidian when no config dir is provided', () => {
+		expect(isObsidianPath('.obsidian')).toBe(true);
+		expect(isObsidianPath('.obsidian/secret')).toBe(true);
+		expect(isObsidianPath('custom-config')).toBe(false);
+	});
+
+	it('treats the provided config dir (not .obsidian) as the config folder', () => {
+		expect(isObsidianPath('custom-config', 'custom-config')).toBe(true);
+		expect(isObsidianPath('custom-config/secret', 'custom-config')).toBe(true);
+		expect(isObsidianPath('.obsidian', 'custom-config')).toBe(false);
+	});
+});
+
+describe('resolveMigrationFolders with a custom config dir', () => {
+	it('excludes the provided config dir and keeps .obsidian', () => {
+		expect(resolveMigrationFolders(['.obsidian'], 'custom-config')).toEqual({
+			folders: ['.obsidian'],
+			ok: true
+		});
+		expect(resolveMigrationFolders(['custom-config'], 'custom-config')).toEqual({
+			message: t('migration.emptyFolders'),
+			ok: false
+		});
+	});
+});
+
