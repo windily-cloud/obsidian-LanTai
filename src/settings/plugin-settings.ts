@@ -17,6 +17,7 @@ import type { S3SectionContext } from './sections/s3/s3-section.ts';
 import type { StorageProfile } from './sections/s3/storage-profile.ts';
 
 import { t } from '../i18n/index.ts';
+import { MIGRATION_DEFAULT_CONCURRENCY } from '../migration/migration-runner.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
@@ -68,6 +69,8 @@ export class PluginSettings {
 	public linkStyle: LinkStyle = 'wiki';
 	// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 	public localPathTemplate = '${originalName}.${ext}';
+	/** 批量迁移时同时处理的文件数；同一篇笔记的改写仍然串行。 */
+	public migrationConcurrency = MIGRATION_DEFAULT_CONCURRENCY;
 	public profiles: StorageProfile[] = [];
 }
 

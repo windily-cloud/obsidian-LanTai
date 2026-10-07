@@ -180,6 +180,7 @@ export class Plugin extends PluginBase {
 		});
 		const migrationStore = new ObsidianMigrationPlanStore({ app: this.app });
 		const migrationRunner = new MigrationRunner({
+			concurrency: this.settings.migrationConcurrency,
 			hasLocalReference: async (localPath): Promise<boolean> => {
 				const notes: NoteImageContent[] = [];
 				for (const file of this.app.vault.getMarkdownFiles()) {

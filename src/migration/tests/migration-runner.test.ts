@@ -28,6 +28,7 @@ import { MigrationRunner } from '../migration-runner.ts';
 import { MigrationUploadPacer } from '../migration-upload-pacer.ts';
 
 interface CreateRunnerOptions {
+	readonly concurrency?: number;
 	hasLocalReference?(): Promise<boolean>;
 	readonly notes?: Record<string, FakeNoteContent>;
 	readonly pacer?: MigrationUploadPacer;
@@ -48,6 +49,23 @@ interface CreateRunnerResult {
 interface EmptyMigrationLoadResult {
 	readonly ok: true;
 	readonly plan: null;
+}
+
+/** 记录读取文件的并发峰值，用来验证迁移是否真的并行。 */
+class ConcurrencyTrackingVault extends FakeVaultBinary {
+	public active = 0;
+	public peak = 0;
+
+	public override async readBinary(path: string): Promise<Uint8Array> {
+		this.active += 1;
+		this.peak = Math.max(this.peak, this.active);
+		await noopAsync();
+		try {
+			return await super.readBinary(path);
+		} finally {
+			this.active -= 1;
+		}
+	}
 }
 
 class MemoryMigrationPlanStore implements MigrationPlanStore {
@@ -128,6 +146,7 @@ function createRunner(options?: CreateRunnerOptions): CreateRunnerResult {
 		throw new Error('missing profile');
 	}
 	const runner = new MigrationRunner({
+		concurrency: options?.concurrency,
 		hasLocalReference: (): Promise<boolean> =>
 			options?.hasLocalReference
 				? options.hasLocalReference()
@@ -430,5 +449,94 @@ describe('MigrationRunner', () => {
 			'![](https://cdn.example.com/images/photo.png)'
 		);
 		expect(sleeps).toEqual([50]);
+	});
+
+	it('uploads files referenced by different notes concurrently', async () => {
+		const vault = new ConcurrencyTrackingVault({
+			'Journal/a.png': new Uint8Array([1]),
+			'Journal/b.png': new Uint8Array([2]),
+			'Journal/c.png': new Uint8Array([3])
+		});
+		const { runner } = createRunner({
+			concurrency: 3,
+			notes: {
+				'Journal/a.md': new FakeNoteContent('![[a.png]]'),
+				'Journal/b.md': new FakeNoteContent('![[b.png]]'),
+				'Journal/c.md': new FakeNoteContent('![[c.png]]')
+			},
+			vault
+		});
+		const plan = await runner.run({
+			plan: createPlan({
+				items: [
+					{
+						bytes: 1,
+						localPath: 'Journal/a.png',
+						refs: [{ notePath: 'Journal/a.md', source: '![[a.png]]', status: 'pending' }],
+						status: 'pending'
+					},
+					{
+						bytes: 1,
+						localPath: 'Journal/b.png',
+						refs: [{ notePath: 'Journal/b.md', source: '![[b.png]]', status: 'pending' }],
+						status: 'pending'
+					},
+					{
+						bytes: 1,
+						localPath: 'Journal/c.png',
+						refs: [{ notePath: 'Journal/c.md', source: '![[c.png]]', status: 'pending' }],
+						status: 'pending'
+					}
+				]
+			}),
+			shouldPause: (): boolean => false
+		});
+		expect(plan.status).toBe('completed');
+		expect(vault.peak).toBeGreaterThan(1);
+	});
+
+	it('serialises items sharing one note so every reference is rewritten', async () => {
+		const note = new FakeNoteContent('![[a.png]]\n![[b.png]]\n![[c.png]]');
+		const vault = new ConcurrencyTrackingVault({
+			'Journal/a.png': new Uint8Array([1]),
+			'Journal/b.png': new Uint8Array([2]),
+			'Journal/c.png': new Uint8Array([3])
+		});
+		const { runner, storage } = createRunner({
+			concurrency: 3,
+			notes: { 'Journal/a.md': note },
+			vault
+		});
+		const plan = await runner.run({
+			plan: createPlan({
+				items: [
+					{
+						bytes: 1,
+						localPath: 'Journal/a.png',
+						refs: [{ notePath: 'Journal/a.md', source: '![[a.png]]', status: 'pending' }],
+						status: 'pending'
+					},
+					{
+						bytes: 1,
+						localPath: 'Journal/b.png',
+						refs: [{ notePath: 'Journal/a.md', source: '![[b.png]]', status: 'pending' }],
+						status: 'pending'
+					},
+					{
+						bytes: 1,
+						localPath: 'Journal/c.png',
+						refs: [{ notePath: 'Journal/a.md', source: '![[c.png]]', status: 'pending' }],
+						status: 'pending'
+					}
+				]
+			}),
+			shouldPause: (): boolean => false
+		});
+		expect(plan.status).toBe('completed');
+		expect(vault.peak).toBe(1);
+		expect(storage.uploadedKeys).toHaveLength(3);
+		expect(note.getContent()).toBe(
+			'![](https://cdn.example.com/images/a.png)\n![](https://cdn.example.com/images/b.png)\n![](https://cdn.example.com/images/c.png)'
+		);
 	});
 });

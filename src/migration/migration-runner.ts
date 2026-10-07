@@ -1,3 +1,5 @@
+import { noopAsync } from 'obsidian-dev-utils/function';
+
 import type { ActionResult } from '../actions/action-result.ts';
 import type {
 	LocalImageRewriteTarget,
@@ -34,7 +36,26 @@ import {
 	throttleRetryAfterMs
 } from './migration-upload-pacer.ts';
 
+/** 批量迁移默认同时处理的文件数。上传是网络 IO，串行时总耗时约等于 文件数 × RTT。 */
+export const MIGRATION_DEFAULT_CONCURRENCY = 4;
+export const MIGRATION_MAX_CONCURRENCY = 16;
+/**
+ * 迁移计划可能包含数千条引用，JSON 体积可达数 MB。
+ * 每处理一个文件就整份落盘会把迁移拖慢，因此按最小间隔节流。
+ */
+const MIGRATION_SAVE_INTERVAL_MS = 2_000;
+
+const RESOLVED: Promise<unknown> = noopAsync();
+
+/** 待处理的迁移任务队列，由多个 worker 竞争取用。 */
+interface MigrationQueue {
+	cursor: number;
+	readonly items: readonly MigrationItem[];
+	paused: boolean;
+}
+
 interface MigrationRunnerConstructorParams {
+	readonly concurrency?: number | undefined;
 	hasLocalReference(localPath: string): Promise<boolean>;
 	openNote(notePath: string): Promise<NoteContent | null>;
 	readonly pacer?: MigrationUploadPacer;
@@ -65,7 +86,10 @@ interface RunnableMigrationRefs {
 }
 
 export class MigrationRunner {
+	private readonly concurrency: number;
 	private readonly hasLocalReference: MigrationRunnerConstructorParams['hasLocalReference'];
+	private lastSavedAt = 0;
+	private readonly noteLocks = new Map<string, Promise<unknown>>();
 	private readonly openNote: MigrationRunnerConstructorParams['openNote'];
 	private readonly pacer: MigrationUploadPacer;
 	private readonly pathResolver: AttachmentPathResolver;
@@ -77,6 +101,7 @@ export class MigrationRunner {
 	private readonly vault: VaultBinary;
 
 	public constructor(params: MigrationRunnerConstructorParams) {
+		this.concurrency = clampConcurrency(params.concurrency);
 		this.hasLocalReference = (localPath): Promise<boolean> => params.hasLocalReference(localPath);
 		this.openNote = (notePath): Promise<NoteContent | null> => params.openNote(notePath);
 		this.pathResolver = params.pathResolver;
@@ -111,28 +136,23 @@ export class MigrationRunner {
 		}
 
 		const notes = new Map<string, NoteContent>();
-		for (const item of plan.items) {
-			if (input.shouldPause()) {
-				plan.status = 'paused';
-				plan.updatedAt = Date.now();
-				await this.store.save(plan);
-				return plan;
-			}
-			if (item.status === 'done') {
-				continue;
-			}
-			input.onProgress?.({
-				currentPath: item.localPath,
-				done: plan.stats.doneCount,
-				total: plan.items.length
-			});
-			await this.runItemWithRetries(plan, item, prepared, notes);
-			refreshMigrationStats(plan);
-			plan.updatedAt = Date.now();
-			await this.store.save(plan);
-		}
+		const queue: MigrationQueue = {
+			cursor: 0,
+			items: plan.items.filter((item) => item.status !== 'done'),
+			paused: false
+		};
 
-		if (migrationAllDone(plan)) {
+		const workers: Promise<void>[] = [];
+		const workerCount = Math.max(1, Math.min(this.concurrency, queue.items.length));
+		for (let index = 0; index < workerCount; index += 1) {
+			workers.push(this.runQueue(plan, queue, prepared, notes, input));
+		}
+		await Promise.all(workers);
+
+		refreshMigrationStats(plan);
+		await this.persist(plan, true);
+
+		if (!queue.paused && migrationAllDone(plan)) {
 			plan.status = 'completed';
 			plan.updatedAt = Date.now();
 			await this.store.delete();
@@ -196,6 +216,16 @@ export class MigrationRunner {
 		return { refs, targets };
 	}
 
+	private async persist(plan: MigrationPlan, force = false): Promise<void> {
+		plan.updatedAt = Date.now();
+		const now = Date.now();
+		if (!force && now - this.lastSavedAt < MIGRATION_SAVE_INTERVAL_MS) {
+			return;
+		}
+		this.lastSavedAt = now;
+		await this.store.save(plan);
+	}
+
 	private async runItem(
 		plan: MigrationPlan,
 		item: MigrationItem,
@@ -238,8 +268,7 @@ export class MigrationRunner {
 			objectKeyTemplate: prepared.profile.objectKeyTemplate,
 			onUploaded: async (info): Promise<void> => {
 				markItemUploaded(item, info.key, info.url);
-				plan.updatedAt = Date.now();
-				await this.store.save(plan);
+				await this.persist(plan, true);
 			},
 			profileId: prepared.profile.id,
 			recordUpload: (entry): Promise<void> => this.recordUpload(entry),
@@ -261,6 +290,20 @@ export class MigrationRunner {
 			item,
 			item.refs.find((ref) => ref.status === 'failed')?.error ?? t('errors.imageActionFailed')
 		);
+	}
+
+	/**
+	 * 同一篇笔记的改写必须串行：并发改写会让两边读到不同的内容快照而互相覆盖。
+	 * 不同笔记之间没有共享状态，可以放心并发。
+	 */
+	private async runItemWithNoteLock(
+		plan: MigrationPlan,
+		item: MigrationItem,
+		prepared: PreparedUploadSession,
+		notes: Map<string, NoteContent>
+	): Promise<void> {
+		const notePaths = item.refs.map((ref) => ref.notePath);
+		await this.withNoteLocks(notePaths, () => this.runItemWithRetries(plan, item, prepared, notes));
 	}
 
 	private async runItemWithRetries(
@@ -294,6 +337,53 @@ export class MigrationRunner {
 			}
 		}
 	}
+
+	private async runQueue(
+		plan: MigrationPlan,
+		queue: MigrationQueue,
+		prepared: PreparedUploadSession,
+		notes: Map<string, NoteContent>,
+		input: RunMigrationInput
+	): Promise<void> {
+		for (;;) {
+			if (input.shouldPause()) {
+				queue.paused = true;
+				return;
+			}
+			const item = takeNextItem(queue);
+			if (!item) {
+				return;
+			}
+			input.onProgress?.({
+				currentPath: item.localPath,
+				done: plan.stats.doneCount,
+				total: plan.items.length
+			});
+			await this.runItemWithNoteLock(plan, item, prepared, notes);
+			refreshMigrationStats(plan);
+			await this.persist(plan);
+		}
+	}
+
+	private async withNoteLocks<T>(
+		notePaths: readonly string[],
+		task: () => Promise<T>
+	): Promise<T> {
+		const keys = [...new Set(notePaths)];
+		if (keys.length === 0) {
+			return task();
+		}
+		const gates = keys.map((key) => this.noteLocks.get(key) ?? RESOLVED);
+		const run = Promise.all(gates).then(task, task);
+		const marker = run.then(
+			(): void => undefined,
+			(): void => undefined
+		);
+		for (const key of keys) {
+			this.noteLocks.set(key, marker);
+		}
+		return run;
+	}
 }
 
 function applyRefResults(
@@ -312,6 +402,13 @@ function applyRefResults(
 			? (refResult.message ?? t('errors.imageActionFailed'))
 			: t('errors.imageActionFailed');
 	}
+}
+
+function clampConcurrency(value: number | undefined): number {
+	if (value === undefined || !Number.isFinite(value)) {
+		return MIGRATION_DEFAULT_CONCURRENCY;
+	}
+	return Math.min(MIGRATION_MAX_CONCURRENCY, Math.max(1, Math.floor(value)));
 }
 
 function failItem(
@@ -340,6 +437,15 @@ function markItemUploaded(item: MigrationItem, key: string, url: string): void {
 	item.uploadedKey = key;
 	item.uploadedUrl = url;
 	item.status = 'uploaded';
+}
+
+function takeNextItem(queue: MigrationQueue): MigrationItem | undefined {
+	if (queue.paused) {
+		return undefined;
+	}
+	const item = queue.items.at(queue.cursor);
+	queue.cursor += 1;
+	return item;
 }
 
 function uploadSessionErrorMessage(failure: UploadSessionFailure): string {
