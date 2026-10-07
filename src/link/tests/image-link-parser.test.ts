@@ -72,6 +72,88 @@ describe('ImageLinkParser', () => {
 		expect(refs[0]?.decorations).toEqual([]);
 	});
 
+	it('keeps parentheses inside a markdown target', () => {
+		const ref = parser.parse(
+			'![](../repository/images/语音增强(SE)/基于深度学习的单通道语音增强/频谱映射示意图.webp)'
+		)[0];
+
+		expect(ref?.target).toBe(
+			'../repository/images/语音增强(SE)/基于深度学习的单通道语音增强/频谱映射示意图.webp'
+		);
+		expect(ref?.isRemote).toBe(false);
+	});
+
+	it('preserves the full source range for a target with parentheses', () => {
+		const markdown = 'x ![](../a(b)/c.webp) y';
+		const refs = parser.parse(markdown);
+
+		expect(refs).toHaveLength(1);
+		expect(refs[0]).toMatchObject({
+			end: 21,
+			start: 2
+		});
+		expect(markdown.slice(refs[0]?.start, refs[0]?.end)).toBe('![](../a(b)/c.webp)');
+	});
+
+	it('parses an angle-bracket target containing spaces and parentheses', () => {
+		const ref = parser.parse('![](<../repository/images/my note (v2)/a b.webp>)')[0];
+
+		expect(ref?.target).toBe('../repository/images/my note (v2)/a b.webp');
+	});
+
+	it('parses a title after a parenthesised target', () => {
+		const ref = parser.parse('![cap](../a(b)/c.webp "Image title")')[0];
+
+		expect(ref).toMatchObject({
+			markdownTitle: '"Image title"',
+			target: '../a(b)/c.webp'
+		});
+	});
+
+	it('keeps percent-encoded parentheses as written', () => {
+		const ref = parser.parse('![](../a%28b%29/c.webp)')[0];
+
+		expect(ref?.target).toBe('../a%28b%29/c.webp');
+	});
+
+	it('keeps unencoded spaces inside a local path', () => {
+		const ref = parser.parse(
+			'![](../../repository/images/Web前端后端/爬虫/爬虫01 网络与并发基础/网络分层与报文封装.svg)'
+		)[0];
+
+		expect(ref?.target).toBe(
+			'../../repository/images/Web前端后端/爬虫/爬虫01 网络与并发基础/网络分层与报文封装.svg'
+		);
+	});
+
+	it('keeps spaces in a path that also contains parentheses and full-width colon', () => {
+		const ref = parser.parse('![](../../repository/images/Flask/Flask 02：与 HTTP（请求与响应）/x.svg)')[0];
+
+		expect(ref?.target).toBe('../../repository/images/Flask/Flask 02：与 HTTP（请求与响应）/x.svg');
+	});
+
+	it('still ends the target at a title after a spaced path', () => {
+		const ref = parser.parse('![cap](../images/爬虫01 网络与并发基础/a.svg "Image title")')[0];
+
+		expect(ref).toMatchObject({
+			markdownTitle: '"Image title"',
+			target: '../images/爬虫01 网络与并发基础/a.svg'
+		});
+	});
+
+	it('ends the target at a closing parenthesis after trailing space', () => {
+		const ref = parser.parse('![](a.svg )')[0];
+
+		expect(ref?.target).toBe('a.svg');
+	});
+
+	it('keeps parentheses inside a remote url', () => {
+		const ref = parser.parse('![](https://cdn.example.com/a(b)/c.png)')[0];
+
+		expect(ref?.target).toBe('https://cdn.example.com/a(b)/c.png');
+		expect(ref?.isRemote).toBe(true);
+	});
+
 	describe('markdown context', () => {
 		it('skips images inside a backtick fence', () => {
 			const markdown = [
