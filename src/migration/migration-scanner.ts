@@ -8,8 +8,22 @@ import type {
 
 import { classifyRefs } from '../actions/image-action-facade.ts';
 import { t } from '../i18n/index.ts';
-import { refreshMigrationStats } from './migration-plan.ts';
+import {
+	MIGRATION_PLAN_VERSION,
+	refreshMigrationStats
+} from './migration-plan.ts';
 import { buildMigrationUrlPattern } from './migration-url-pattern.ts';
+
+/**
+ * Object key 模板里与「笔记」绑定的 token 名。命中任意一个时，同一个本地文件在不同笔记下
+ * **本应**得到不同的 key，因此扫描阶段不能跨笔记把引用合并成同一个 item。
+ */
+const NOTE_SCOPED_KEY_TOKEN_NAMES = [
+	'noteFileName',
+	'noteFilePath',
+	'noteFolderName',
+	'noteFolderPath'
+] as const;
 
 export interface MigrationScanVault {
 	fileSize(path: string): null | number;
@@ -22,6 +36,7 @@ export interface MigrationScanVault {
 interface ScanGroup {
 	bytes: number;
 	found: boolean;
+	localPath: string;
 	refs: MigrationRef[];
 }
 
@@ -33,7 +48,13 @@ interface ScanMigrationInput {
 	readonly vault: MigrationScanVault;
 }
 
+/** Exposed for unit tests. */
+export function isNoteScopedObjectKeyTemplate(template: string): boolean {
+	return NOTE_SCOPED_KEY_TOKEN_NAMES.some((name) => template.includes(`\${${name}}`));
+}
+
 export async function scanMigrationPlan(input: ScanMigrationInput): Promise<MigrationPlan> {
+	const noteScopedKeys = isNoteScopedObjectKeyTemplate(input.profile.objectKeyTemplate);
 	const grouped = new Map<string, ScanGroup>();
 	for (const notePath of input.vault.listMarkdownFilesInFolders(input.folders)) {
 		const content = await input.vault.readNote(notePath);
@@ -44,14 +65,18 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 			const localPath = resolved !== null && bytes !== null
 				? resolved
 				: `unresolved:${notePath}:${ref.source}`;
-			let group = grouped.get(localPath);
+			// Key 模板引用笔记 token 时，同一个文件对不同笔记必须各自算 key，
+			// 因此按「文件 + 笔记」分组，而不是仅按文件合并。
+			const groupKey = noteScopedKeys ? `${localPath}\u0000${notePath}` : localPath;
+			let group = grouped.get(groupKey);
 			if (!group) {
 				group = {
 					bytes: bytes ?? 0,
 					found: resolved !== null && bytes !== null,
+					localPath,
 					refs: []
 				};
-				grouped.set(localPath, group);
+				grouped.set(groupKey, group);
 			}
 			group.refs.push({
 				notePath,
@@ -68,10 +93,10 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 	}
 
 	const now = Date.now();
-	const items: MigrationItem[] = [...grouped.entries()].map(([localPath, group]) => {
+	const items: MigrationItem[] = [...grouped.values()].map((group) => {
 		const item: MigrationItem = {
 			bytes: group.bytes,
-			localPath,
+			localPath: group.localPath,
 			refs: group.refs,
 			status: group.found ? 'pending' : 'failed'
 		};
@@ -98,7 +123,7 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 		status: 'scanned',
 		updatedAt: now,
 		urlPattern: buildMigrationUrlPattern(input.profile),
-		version: 1
+		version: MIGRATION_PLAN_VERSION
 	};
 	refreshMigrationStats(plan);
 	return plan;

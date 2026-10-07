@@ -9,7 +9,10 @@ import type { MigrationScanVault } from '../migration-scanner.ts';
 
 import { ImageLinkParser } from '../../link/image-link-parser.ts';
 import { isNoteInSelectedFolders } from '../migration-folders.ts';
-import { scanMigrationPlan } from '../migration-scanner.ts';
+import {
+	isNoteScopedObjectKeyTemplate,
+	scanMigrationPlan
+} from '../migration-scanner.ts';
 import { LANTAI_MIGRATION_URL_PATTERN } from '../migration-url-pattern.ts';
 
 function s3Profile(publicBaseUrl = 'https://cdn.example.com'): StorageProfile {
@@ -100,5 +103,55 @@ describe('scanMigrationPlan', () => {
 		expect(plan.urlPattern).toBe(LANTAI_MIGRATION_URL_PATTERN);
 		expect(plan.items[0]?.status).toBe('failed');
 		expect(plan.stats.failedCount).toBe(1);
+	});
+
+	it('keeps one item per note when the object key template is note-scoped', async () => {
+		// 同一个文件被两篇笔记引用：key 模板含笔记 token 时必须各自算 key，不能合并成一组。
+		const plan = await scanMigrationPlan({
+			deleteSourceAfterUpload: false,
+			folders: ['Journal'],
+			parse: (content) => new ImageLinkParser().parse(content),
+			profile: {
+				...s3Profile(),
+				// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+				objectKeyTemplate: 'repository/images/${noteFolderPath}/${noteFileName}/${originalName}.${ext}'
+			},
+			vault: vault(
+				{
+					'Journal/2024/a.md': '![[photo.png]]',
+					'Journal/b.md': '![[photo.png]]'
+				},
+				{ 'Journal/photo.png': 12 }
+			)
+		});
+		expect(
+			plan.items.map((item) => ({
+				localPath: item.localPath,
+				notes: item.refs.map((ref) => ref.notePath)
+			}))
+		).toEqual([
+			{ localPath: 'Journal/photo.png', notes: ['Journal/2024/a.md'] },
+			{ localPath: 'Journal/photo.png', notes: ['Journal/b.md'] }
+		]);
+		expect(plan.stats).toMatchObject({
+			noteCount: 2,
+			totalRefs: 2,
+			uniqueFiles: 1
+		});
+	});
+});
+
+describe('isNoteScopedObjectKeyTemplate', () => {
+	it('detects templates that depend on the note path', () => {
+		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+		expect(isNoteScopedObjectKeyTemplate('images/${originalName}.${ext}')).toBe(false);
+		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+		expect(isNoteScopedObjectKeyTemplate('${date}/${originalName}.${ext}')).toBe(false);
+		expect(
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			isNoteScopedObjectKeyTemplate('images/${noteFolderPath}/${noteFileName}/${originalName}.${ext}')
+		).toBe(true);
+		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+		expect(isNoteScopedObjectKeyTemplate('${noteFilePath}.${ext}')).toBe(true);
 	});
 });

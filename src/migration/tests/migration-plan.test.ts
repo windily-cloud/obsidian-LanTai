@@ -53,7 +53,14 @@ describe('parseMigrationPlan', () => {
 	});
 
 	it('rejects the wrong version', () => {
-		expect(parseMigrationPlan({ ...samplePlan(), version: 2 })).toEqual({
+		expect(parseMigrationPlan({ ...samplePlan(), version: MIGRATION_PLAN_VERSION + 1 })).toEqual({
+			ok: false,
+			reason: 'invalid'
+		});
+	});
+
+	it('rejects a legacy v1 plan so that it gets re-scanned', () => {
+		expect(parseMigrationPlan({ ...samplePlan(), version: 1 })).toEqual({
 			ok: false,
 			reason: 'invalid'
 		});

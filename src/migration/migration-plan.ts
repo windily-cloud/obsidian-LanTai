@@ -1,7 +1,12 @@
 import type { StorageProvider } from '../settings/sections/s3/storage-profile.ts';
 
-/** Exposed for unit tests. */
-export const MIGRATION_PLAN_VERSION = 1;
+/**
+ * Exposed for unit tests.
+ *
+ * v2：扫描分组语义变更 —— object key 模板引用笔记 token 时不再跨笔记合并 item。
+ * 旧计划（v1）的分组与 key 计算方式存在错配风险，直接作废要求重新扫描。
+ */
+export const MIGRATION_PLAN_VERSION = 2;
 
 export interface MigrationItem {
 	bytes: number;
@@ -130,12 +135,14 @@ export function parseMigrationPlan(raw: unknown): ParsedMigrationPlan {
 
 export function refreshMigrationStats(plan: MigrationPlan): void {
 	const notes = new Set<string>();
+	const files = new Set<string>();
 	let totalRefs = 0;
 	let totalBytes = 0;
 	let doneCount = 0;
 	let failedCount = 0;
 	for (const item of plan.items) {
 		totalRefs += item.refs.length;
+		files.add(item.localPath);
 		if (item.status === 'done') {
 			doneCount += 1;
 		} else if (item.status === 'failed') {
@@ -154,7 +161,7 @@ export function refreshMigrationStats(plan: MigrationPlan): void {
 		noteCount: notes.size,
 		totalBytes,
 		totalRefs,
-		uniqueFiles: plan.items.length
+		uniqueFiles: files.size
 	};
 }
 

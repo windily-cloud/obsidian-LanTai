@@ -44,7 +44,20 @@ export class ObsidianVaultBinary implements VaultBinary {
 		return new Uint8Array(await this.app.vault.readBinary(file));
 	}
 
+	/**
+	 * 解析链接指向的库内文件。
+	 *
+	 * target 含路径分隔符时**只做精确解析**（笔记相对 → 库根相对），不再退回
+	 * `getFirstLinkpathDest` 的按文件名模糊匹配：该匹配对扩展名不敏感，且同名文件位于
+	 * 不同目录时返回值取决于库内顺序，会把「链接里已写明完整路径」的引用解析到别的文件，
+	 * 进而造成上传内容与对象键错配、跨笔记改写链接。仅当 target 是裸文件名（wiki 风格）
+	 * 时才沿用 Obsidian 的 name-based 解析语义。
+	 */
 	public resolvePath(target: string, noteFilePath: string): null | string {
+		const exactPaths = pathCandidates(target, noteFilePath);
+		if (exactPaths.length > 0) {
+			return this.findByPath(exactPaths);
+		}
 		for (const linkpath of linkpathCandidates(target)) {
 			// Cspell:ignore linkpath -- Obsidian API method spelling.
 			const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, noteFilePath);
@@ -74,6 +87,32 @@ export class ObsidianVaultBinary implements VaultBinary {
 			toStandaloneArrayBuffer(bytes)
 		);
 	}
+
+	private findByPath(paths: readonly string[]): null | string {
+		for (const path of paths) {
+			const file = this.app.vault.getFileByPath(path);
+			if (file) {
+				return file.path;
+			}
+		}
+		// 精确路径全部落空时才容忍大小写差异：Obsidian 的链接解析本身大小写不敏感，
+		// 这里保持同一语义，避免正常链接被误判为未解析。仍然要求**完整路径**匹配，
+		// 因此不会退化成按文件名猜测。
+		const byLowerCasedPath = new Map<string, string>();
+		for (const file of this.app.vault.getFiles()) {
+			const key = file.path.toLowerCase();
+			if (!byLowerCasedPath.has(key)) {
+				byLowerCasedPath.set(key, file.path);
+			}
+		}
+		for (const path of paths) {
+			const matched = byLowerCasedPath.get(path.toLowerCase());
+			if (matched !== undefined) {
+				return matched;
+			}
+		}
+		return null;
+	}
 }
 
 function basename(path: string): string {
@@ -91,6 +130,37 @@ function decodeLinkTarget(target: string): string {
 	}
 }
 
+function folderOfNote(noteFilePath: string): string {
+	const normalized = noteFilePath.replace(/\\/g, '/');
+	const index = normalized.lastIndexOf('/');
+	return index === -1 ? '' : normalized.slice(0, index);
+}
+
+function isPathBearing(target: string): boolean {
+	return target.includes('/');
+}
+
+/** 拼接库内路径并折叠 `.` / `..`，越出库根时按库根截断。 */
+function joinVaultPath(folder: string, relative: string): string {
+	const segments: string[] = [];
+	for (const segment of folder.split('/')) {
+		if (segment !== '' && segment !== '.') {
+			segments.push(segment);
+		}
+	}
+	for (const segment of relative.split('/')) {
+		if (segment === '' || segment === '.') {
+			continue;
+		}
+		if (segment === '..') {
+			segments.pop();
+			continue;
+		}
+		segments.push(segment);
+	}
+	return segments.join('/');
+}
+
 function linkpathCandidates(target: string): string[] {
 	const candidates: string[] = [];
 	for (const variant of targetVariants(target)) {
@@ -105,6 +175,29 @@ function linkpathCandidates(target: string): string[] {
 		}
 	}
 	return [...new Set(candidates)];
+}
+
+/**
+ * 含路径分隔符的 target 对应的候选库内路径，按解析优先级排序：笔记相对路径 → 库根相对路径，
+ * 每种都先试原始写法、再试解码后的写法。裸文件名返回空数组，交给 Obsidian 的 name-based 解析。
+ */
+function pathCandidates(target: string, noteFilePath: string): string[] {
+	const noteFolder = folderOfNote(noteFilePath);
+	const candidates: string[] = [];
+	for (const variant of targetVariants(target)) {
+		const withoutProtocol = stripResourceProtocol(variant);
+		const withoutQuery = withoutProtocol.split(/[?#]/u, 1)[0] ?? withoutProtocol;
+		if (!isPathBearing(withoutQuery)) {
+			continue;
+		}
+		if (withoutQuery.startsWith('/')) {
+			candidates.push(normalizePath(withoutQuery));
+			continue;
+		}
+		candidates.push(normalizePath(joinVaultPath(noteFolder, withoutQuery)));
+		candidates.push(normalizePath(withoutQuery));
+	}
+	return [...new Set(candidates)].filter((path) => path !== '');
 }
 
 function stripResourceProtocol(target: string): string {
