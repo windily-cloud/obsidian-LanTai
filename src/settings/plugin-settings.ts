@@ -23,6 +23,7 @@ import {
 	previewContext
 } from './helpers/path-template-ui.ts';
 import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
+import { shouldShowMigrationSettings } from './sections/migration-section.ts';
 import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
@@ -314,7 +315,7 @@ export function buildLanTaiSettingDefinitions(
 			type: 'group'
 		}
 	];
-	if (params.isMobile !== true) {
+	if (shouldShowMigrationSettings(params.isMobile === true)) {
 		groups.push({
 			heading: t('migration.section'),
 			items: [
