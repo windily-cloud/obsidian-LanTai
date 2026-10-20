@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.0.12
+
+- fix: 移除仅测试使用的 displayMigrationSection，收紧 export
+- chore: 统一 JSON 为 tab 缩进
+- fix: 兰台 API key 绑定所选密钥名并修复图片设置保存
+- fix: 按括号深度解析图片链接目标，支持未转义括号与空格 (#10)
+- fix: 统一按剥离 BOM 的视图计算笔记编辑偏移 (#8)
+- fix: 精确解析含路径的图片链接并按笔记计算对象键 (#6)
+- fix: 迁移文件夹遵循 app.vault.configDir (#3)
+
 ## 0.0.11
 
 - chore: 统一 JSON 为 tab 缩进
