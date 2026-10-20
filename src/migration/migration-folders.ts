@@ -17,12 +17,16 @@ const OBSIDIAN_CONFIG_DIR_NAME = '.obsidian';
 /** Sentinel stored in a plan when the user picks All (the whole vault). */
 export const MIGRATION_ALL_FOLDERS = '/';
 
-export function addMigrationFolder(current: readonly string[], added: string): string[] {
+export function addMigrationFolder(
+	current: readonly string[],
+	added: string,
+	configDir: string = OBSIDIAN_CONFIG_DIR_NAME
+): string[] {
 	if (isAllFolders(added)) {
 		return [MIGRATION_ALL_FOLDERS];
 	}
 	const path = normalizeVaultPath(added);
-	if (path === '' || isObsidianPath(path) || hasParentSegment(path) || isAbsolutePath(added)) {
+	if (path === '' || isObsidianPath(path, configDir) || hasParentSegment(path) || isAbsolutePath(added)) {
 		return current.filter((folder) => !isAllFolders(folder));
 	}
 	const withoutAll = current.filter((folder) => !isAllFolders(folder));
@@ -57,7 +61,7 @@ export function availableMigrationFolderPaths(
 	}
 	return [...vaultFolderPaths]
 		.filter((path) => {
-			if (path === '' || isAllFolders(path) || isSkippedFolder(path, configDir)) {
+			if (path === '' || isAllFolders(path) || isObsidianPath(path, configDir)) {
 				return false;
 			}
 			return !selected.some((folder) => path === folder || path.startsWith(`${folder}/`));
@@ -70,9 +74,13 @@ export function isAllFolders(path: string): boolean {
 }
 
 /** Exposed for unit tests. */
-export function isNoteInSelectedFolders(notePath: string, folders: readonly string[]): boolean {
+export function isNoteInSelectedFolders(
+	notePath: string,
+	folders: readonly string[],
+	configDir: string = OBSIDIAN_CONFIG_DIR_NAME
+): boolean {
 	const note = normalizeVaultPath(notePath);
-	if (note === '' || isObsidianPath(note)) {
+	if (note === '' || isObsidianPath(note, configDir)) {
 		return false;
 	}
 	if (folders.some(isAllFolders)) {
@@ -84,16 +92,23 @@ export function isNoteInSelectedFolders(notePath: string, folders: readonly stri
 	});
 }
 
-export function isObsidianPath(path: string): boolean {
+export function isObsidianPath(
+	path: string,
+	configDir: string = OBSIDIAN_CONFIG_DIR_NAME
+): boolean {
 	const normalized = normalizeVaultPath(path);
-	return normalized === OBSIDIAN_CONFIG_DIR_NAME || normalized.startsWith(`${OBSIDIAN_CONFIG_DIR_NAME}/`);
+	const config = normalizeConfigDir(configDir);
+	return normalized === config || normalized.startsWith(`${config}/`);
 }
 
 export function migrationFolderLabel(path: string): string {
 	return isAllFolders(path) ? t('migration.allFolders') : path;
 }
 
-export function resolveMigrationFolders(folders: readonly string[]): ParseMigrationFoldersResult {
+export function resolveMigrationFolders(
+	folders: readonly string[],
+	configDir: string = OBSIDIAN_CONFIG_DIR_NAME
+): ParseMigrationFoldersResult {
 	if (folders.length === 0) {
 		return { message: t('migration.emptyFolders'), ok: false };
 	}
@@ -104,7 +119,7 @@ export function resolveMigrationFolders(folders: readonly string[]): ParseMigrat
 	const seen = new Set<string>();
 	for (const folder of folders) {
 		const normalized = normalizeVaultPath(folder);
-		if (normalized === '' || isObsidianPath(normalized)) {
+		if (normalized === '' || isObsidianPath(normalized, configDir)) {
 			continue;
 		}
 		if (hasParentSegment(normalized) || isAbsolutePath(folder)) {
@@ -130,11 +145,9 @@ function isAbsolutePath(path: string): boolean {
 	return path.startsWith('/') || path.startsWith('\\') || /^[A-Za-z]:[\\/]/u.test(path);
 }
 
-function isSkippedFolder(path: string, configDir: string): boolean {
-	const normalized = normalizeVaultPath(path);
-	const config = normalizeVaultPath(configDir);
-	return isObsidianPath(normalized)
-		|| (config !== '' && (normalized === config || normalized.startsWith(`${config}/`)));
+function normalizeConfigDir(configDir: string): string {
+	const normalized = normalizeVaultPath(configDir);
+	return normalized === '' ? OBSIDIAN_CONFIG_DIR_NAME : normalized;
 }
 
 function normalizeVaultPath(path: string): string {

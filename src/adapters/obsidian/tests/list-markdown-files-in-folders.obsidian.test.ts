@@ -40,4 +40,32 @@ describe('listMarkdownFilesInFolders', () => {
 			'outside.md'
 		]);
 	});
+
+	it('skips a custom config folder when All is selected', () => {
+		const app = App.createConfigured__({
+			files: {
+				'custom-config/app.md': '',
+				'Journal/a.md': '',
+				'outside.md': ''
+			}
+		});
+		app.vault.configDir = 'custom-config';
+
+		expect([...listMarkdownFilesInFolders(app.asOriginalType__(), [MIGRATION_ALL_FOLDERS])].sort()).toEqual([
+			'Journal/a.md',
+			'outside.md'
+		]);
+	});
+
+	it('skips a custom config folder when it is selected explicitly', () => {
+		const app = App.createConfigured__({
+			files: {
+				'custom-config/app.md': '',
+				'Journal/a.md': ''
+			}
+		});
+		app.vault.configDir = 'custom-config';
+
+		expect(listMarkdownFilesInFolders(app.asOriginalType__(), ['custom-config'])).toEqual([]);
+	});
 });

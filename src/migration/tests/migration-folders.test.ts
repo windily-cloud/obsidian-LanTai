@@ -10,6 +10,7 @@ import {
 	assertMigrationFoldersExist,
 	availableMigrationFolderPaths,
 	isNoteInSelectedFolders,
+	isObsidianPath,
 	MIGRATION_ALL_FOLDERS,
 	migrationFolderLabel,
 	resolveMigrationFolders
@@ -90,6 +91,40 @@ describe('isNoteInSelectedFolders', () => {
 	it('treats All as every note except the config folder', () => {
 		expect(isNoteInSelectedFolders('outside.md', [MIGRATION_ALL_FOLDERS])).toBe(true);
 		expect(isNoteInSelectedFolders('.obsidian/app.md', [MIGRATION_ALL_FOLDERS])).toBe(false);
+	});
+});
+
+describe('custom vault config directory', () => {
+	it('treats only the configured directory as the vault config folder', () => {
+		expect(isObsidianPath('custom-config/app.md', 'custom-config')).toBe(true);
+		expect(isObsidianPath('.obsidian/app.md', 'custom-config')).toBe(false);
+		expect(isObsidianPath('custom-configuration/app.md', 'custom-config')).toBe(false);
+	});
+
+	it('does not add the configured directory as a migration source', () => {
+		expect(addMigrationFolder([], 'custom-config', 'custom-config')).toEqual([]);
+		expect(addMigrationFolder(['Journal'], '.obsidian', 'custom-config')).toEqual([
+			'Journal',
+			'.obsidian'
+		]);
+		expect(resolveMigrationFolders(['Journal', 'custom-config'], 'custom-config')).toEqual({
+			folders: ['Journal'],
+			ok: true
+		});
+	});
+
+	it('omits the configured directory from available folders', () => {
+		expect(availableMigrationFolderPaths(
+			['custom-config', 'Journal'],
+			[],
+			'custom-config'
+		)).toEqual(['Journal']);
+	});
+
+	it('skips notes from the configured directory when All is selected', () => {
+		expect(isNoteInSelectedFolders('custom-config/app.md', [MIGRATION_ALL_FOLDERS], 'custom-config')).toBe(false);
+		expect(isNoteInSelectedFolders('.obsidian/app.md', [MIGRATION_ALL_FOLDERS], 'custom-config')).toBe(true);
+		expect(isNoteInSelectedFolders('Journal/a.md', [MIGRATION_ALL_FOLDERS], 'custom-config')).toBe(true);
 	});
 });
 

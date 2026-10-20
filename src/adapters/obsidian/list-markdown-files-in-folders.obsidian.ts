@@ -13,11 +13,12 @@ import {
 
 /** Lists Markdown notes under the given folders via Obsidian's indexed vault tree. */
 export function listMarkdownFilesInFolders(app: App, folders: readonly string[]): string[] {
+	const { configDir } = app.vault;
 	if (folders.some(isAllFolders)) {
 		return uniqueMarkdownPaths(
 			app.vault.getMarkdownFiles()
 				.map((file) => file.path)
-				.filter((path) => !isObsidianPath(path))
+				.filter((path) => !isObsidianPath(path, configDir))
 		);
 	}
 	const paths: string[] = [];
@@ -28,7 +29,11 @@ export function listMarkdownFilesInFolders(app: App, folders: readonly string[])
 			continue;
 		}
 		Vault.recurseChildren(folder, (child) => {
-			if (!(child instanceof TFile) || child.extension !== 'md' || isObsidianPath(child.path)) {
+			if (
+				!(child instanceof TFile)
+				|| child.extension !== 'md'
+				|| isObsidianPath(child.path, configDir)
+			) {
 				return;
 			}
 			if (seen.has(child.path)) {
