@@ -8,8 +8,13 @@ import type {
 
 import { classifyRefs } from '../actions/image-action-facade.ts';
 import { t } from '../i18n/index.ts';
-import { refreshMigrationStats } from './migration-plan.ts';
+import {
+	MIGRATION_PLAN_VERSION,
+	refreshMigrationStats
+} from './migration-plan.ts';
 import { buildMigrationUrlPattern } from './migration-url-pattern.ts';
+
+const NOTE_CONTEXT_TOKEN_RE = /\$\{note(?:FileName|FilePath|FolderName|FolderPath)\}/u;
 
 export interface MigrationScanVault {
 	fileSize(path: string): null | number;
@@ -22,6 +27,7 @@ export interface MigrationScanVault {
 interface ScanGroup {
 	bytes: number;
 	found: boolean;
+	localPath: string;
 	refs: MigrationRef[];
 }
 
@@ -35,6 +41,7 @@ interface ScanMigrationInput {
 
 export async function scanMigrationPlan(input: ScanMigrationInput): Promise<MigrationPlan> {
 	const grouped = new Map<string, ScanGroup>();
+	const noteScopedObjectKeys = NOTE_CONTEXT_TOKEN_RE.test(input.profile.objectKeyTemplate);
 	for (const notePath of input.vault.listMarkdownFilesInFolders(input.folders)) {
 		const content = await input.vault.readNote(notePath);
 		const { local } = classifyRefs(input.parse(content));
@@ -44,14 +51,16 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 			const localPath = resolved !== null && bytes !== null
 				? resolved
 				: `unresolved:${notePath}:${ref.source}`;
-			let group = grouped.get(localPath);
+			const groupKey = noteScopedObjectKeys ? `${localPath}\u0000${notePath}` : localPath;
+			let group = grouped.get(groupKey);
 			if (!group) {
 				group = {
 					bytes: bytes ?? 0,
 					found: resolved !== null && bytes !== null,
+					localPath,
 					refs: []
 				};
-				grouped.set(localPath, group);
+				grouped.set(groupKey, group);
 			}
 			group.refs.push({
 				notePath,
@@ -68,10 +77,10 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 	}
 
 	const now = Date.now();
-	const items: MigrationItem[] = [...grouped.entries()].map(([localPath, group]) => {
+	const items: MigrationItem[] = [...grouped.values()].map((group) => {
 		const item: MigrationItem = {
 			bytes: group.bytes,
-			localPath,
+			localPath: group.localPath,
 			refs: group.refs,
 			status: group.found ? 'pending' : 'failed'
 		};
@@ -98,7 +107,7 @@ export async function scanMigrationPlan(input: ScanMigrationInput): Promise<Migr
 		status: 'scanned',
 		updatedAt: now,
 		urlPattern: buildMigrationUrlPattern(input.profile),
-		version: 1
+		version: MIGRATION_PLAN_VERSION
 	};
 	refreshMigrationStats(plan);
 	return plan;

@@ -23,13 +23,16 @@ import { NameTemplateEngine } from '../../path/name-template-engine.ts';
 import { PluginSettings } from '../../settings/plugin-settings.ts';
 import { StorageRequestError } from '../../storage/storage-request-error.ts';
 import { FakeObjectStorage } from '../../storage/tests/fake-object-storage.ts';
+import { MIGRATION_ALL_FOLDERS } from '../migration-folders.ts';
 import { MIGRATION_PLAN_VERSION } from '../migration-plan.ts';
 import { MigrationRunner } from '../migration-runner.ts';
+import { scanMigrationPlan } from '../migration-scanner.ts';
 import { MigrationUploadPacer } from '../migration-upload-pacer.ts';
 
 interface CreateRunnerOptions {
 	hasLocalReference?(): Promise<boolean>;
 	readonly notes?: Record<string, FakeNoteContent>;
+	readonly objectKeyTemplate?: string;
 	readonly pacer?: MigrationUploadPacer;
 	readonly storage?: FakeObjectStorage;
 	readonly store?: MemoryMigrationPlanStore;
@@ -117,7 +120,7 @@ function createRunner(options?: CreateRunnerOptions): CreateRunnerResult {
 		id: 'p1',
 		name: 'S3',
 		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
-		objectKeyTemplate: 'images/${originalName}.${ext}',
+		objectKeyTemplate: options?.objectKeyTemplate ?? 'images/${originalName}.${ext}',
 		provider: 's3',
 		publicBaseUrl: 'https://cdn.example.com',
 		secretAccessKeySecretName: 'sk'
@@ -357,6 +360,98 @@ describe('MigrationRunner', () => {
 		expect(plan.items[0]?.refs[0]?.status).toBe('done');
 		expect(plan.items[0]?.refs[1]?.status).toBe('failed');
 		expect(vault.trashed).toEqual([]);
+	});
+
+	it('computes a note-specific object key for the same local file', async () => {
+		const noteA = new FakeNoteContent('![[shared.png]]');
+		const noteB = new FakeNoteContent('![[shared.png]]');
+		const { runner, storage } = createRunner({
+			notes: {
+				'a.md': noteA,
+				'b.md': noteB
+			},
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			objectKeyTemplate: 'repository/images/${noteFileName}/${originalName}.${ext}',
+			vault: new FakeVaultBinary({ 'shared.png': new Uint8Array([1]) })
+		});
+		const plan = await runner.run({
+			plan: createPlan({
+				items: [
+					{
+						bytes: 1,
+						localPath: 'shared.png',
+						refs: [{ notePath: 'a.md', source: '![[shared.png]]', status: 'pending' }],
+						status: 'pending'
+					},
+					{
+						bytes: 1,
+						localPath: 'shared.png',
+						refs: [{ notePath: 'b.md', source: '![[shared.png]]', status: 'pending' }],
+						status: 'pending'
+					}
+				]
+			}),
+			shouldPause: (): boolean => false
+		});
+		expect(storage.uploadedKeys.sort()).toEqual([
+			'repository/images/a/shared.png',
+			'repository/images/b/shared.png'
+		]);
+		expect(noteA.getContent()).toBe(
+			'![](https://cdn.example.com/repository/images/a/shared.png)'
+		);
+		expect(noteB.getContent()).toBe(
+			'![](https://cdn.example.com/repository/images/b/shared.png)'
+		);
+		expect(plan.status).toBe('completed');
+		expect(plan.stats.uniqueFiles).toBe(1);
+	});
+
+	it('rewrites each note to its own key after scanning with a note-scoped template', async () => {
+		const noteA = new FakeNoteContent('![[shared.png]]');
+		const noteB = new FakeNoteContent('![[shared.png]]');
+		const { runner, settings, storage } = createRunner({
+			notes: {
+				'a.md': noteA,
+				'b.md': noteB
+			},
+			// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
+			objectKeyTemplate: 'repository/images/${noteFileName}/${originalName}.${ext}',
+			vault: new FakeVaultBinary({ 'shared.png': new Uint8Array([1]) })
+		});
+		const profile = settings.profiles[0];
+		if (!profile) {
+			throw new Error('missing profile');
+		}
+		const files: Record<string, string> = {
+			'a.md': '![[shared.png]]',
+			'b.md': '![[shared.png]]'
+		};
+		const plan = await scanMigrationPlan({
+			deleteSourceAfterUpload: false,
+			folders: [MIGRATION_ALL_FOLDERS],
+			parse: (content) => new ImageLinkParser().parse(content),
+			profile,
+			vault: {
+				fileSize: (): number => 1,
+				folderExists: (): boolean => true,
+				listMarkdownFilesInFolders: (): readonly string[] => ['a.md', 'b.md'],
+				readNote: (path): string => files[path] ?? '',
+				resolveLocalPath: (): string => 'shared.png'
+			}
+		});
+		const result = await runner.run({ plan, shouldPause: (): boolean => false });
+		expect(storage.uploadedKeys.sort()).toEqual([
+			'repository/images/a/shared.png',
+			'repository/images/b/shared.png'
+		]);
+		expect(noteA.getContent()).toBe(
+			'![](https://cdn.example.com/repository/images/a/shared.png)'
+		);
+		expect(noteB.getContent()).toBe(
+			'![](https://cdn.example.com/repository/images/b/shared.png)'
+		);
+		expect(result.status).toBe('completed');
 	});
 
 	it('pauses after the current file when shouldPause becomes true', async () => {

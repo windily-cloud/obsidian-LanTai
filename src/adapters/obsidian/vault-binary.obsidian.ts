@@ -45,14 +45,37 @@ export class ObsidianVaultBinary implements VaultBinary {
 	}
 
 	public resolvePath(target: string, noteFilePath: string): null | string {
-		for (const linkpath of linkpathCandidates(target)) {
-			// Cspell:ignore linkpath -- Obsidian API method spelling.
-			const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, noteFilePath);
+		const resourcePath = isResourceUrl(target) ? stripResourceProtocol(target) : null;
+		const linkTarget = resourcePath ?? target;
+		const variants = targetVariants(linkTarget);
+		const rootRelative = resourcePath !== null || startsWithSeparator(linkTarget);
+
+		if (!rootRelative && !hasPathSeparator(linkTarget)) {
+			for (const variant of variants) {
+				// Cspell:ignore linkpath -- Obsidian API method spelling.
+				const file = this.app.metadataCache.getFirstLinkpathDest(variant, noteFilePath);
+				if (file) {
+					return file.path;
+				}
+			}
+			return null;
+		}
+
+		const candidates = pathCandidates(
+			variants,
+			rootRelative ? '' : folderOf(noteFilePath),
+			rootRelative
+		);
+		for (const candidate of candidates) {
+			const file = this.app.vault.getFileByPath(normalizePath(candidate));
 			if (file) {
 				return file.path;
 			}
 		}
-		return null;
+		const lowerCaseCandidates = new Set(candidates.map((candidate) => candidate.toLowerCase()));
+		const caseInsensitive = this.app.vault.getFiles()
+			.find((file) => lowerCaseCandidates.has(file.path.toLowerCase()));
+		return caseInsensitive?.path ?? null;
 	}
 
 	public async trash(path: string): Promise<void> {
@@ -76,13 +99,6 @@ export class ObsidianVaultBinary implements VaultBinary {
 	}
 }
 
-function basename(path: string): string {
-	const normalized = path.replace(/\\/g, '/');
-	const withoutQuery = normalized.split('?')[0] ?? normalized;
-	const parts = withoutQuery.split('/');
-	return parts[parts.length - 1] ?? withoutQuery;
-}
-
 function decodeLinkTarget(target: string): string {
 	try {
 		return decodeURIComponent(target);
@@ -91,20 +107,59 @@ function decodeLinkTarget(target: string): string {
 	}
 }
 
-function linkpathCandidates(target: string): string[] {
-	const candidates: string[] = [];
-	for (const variant of targetVariants(target)) {
-		const withoutProtocol = stripResourceProtocol(variant);
-		const fileName = basename(withoutProtocol);
-		if (fileName) {
-			candidates.push(fileName);
+function folderOf(path: string): string {
+	const normalized = path.replaceAll('\\', '/');
+	const slashIndex = normalized.lastIndexOf('/');
+	return slashIndex === -1 ? '' : normalized.slice(0, slashIndex);
+}
+
+function hasPathSeparator(target: string): boolean {
+	return /[\\/]/u.test(target);
+}
+
+function isResourceUrl(target: string): boolean {
+	return /^app:\/\//iu.test(target);
+}
+
+function joinVaultPath(baseFolder: string, target: string): string {
+	const segments = baseFolder === '' ? [] : baseFolder.split('/');
+	for (const segment of target.replaceAll('\\', '/').split('/')) {
+		if (segment === '' || segment === '.') {
+			continue;
 		}
-		const normalized = normalizePath(withoutProtocol);
-		if (normalized !== '' && normalized !== fileName) {
-			candidates.push(normalized);
+		if (segment === '..') {
+			segments.pop();
+			continue;
+		}
+		segments.push(segment);
+	}
+	return segments.join('/');
+}
+
+function pathCandidates(
+	variants: readonly string[],
+	noteFolder: string,
+	rootRelative: boolean
+): string[] {
+	const candidates: string[] = [];
+	for (const variant of variants) {
+		const path = variant.replace(/^[\\/]+/u, '');
+		if (!rootRelative) {
+			const relative = joinVaultPath(noteFolder, path);
+			if (relative !== '') {
+				candidates.push(relative);
+			}
+		}
+		const root = joinVaultPath('', path);
+		if (root !== '') {
+			candidates.push(root);
 		}
 	}
 	return [...new Set(candidates)];
+}
+
+function startsWithSeparator(target: string): boolean {
+	return /^[\\/]/u.test(target);
 }
 
 function stripResourceProtocol(target: string): string {

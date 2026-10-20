@@ -1,7 +1,7 @@
 import type { StorageProvider } from '../settings/sections/s3/storage-profile.ts';
 
 /** Exposed for unit tests. */
-export const MIGRATION_PLAN_VERSION = 1;
+export const MIGRATION_PLAN_VERSION = 2;
 
 export interface MigrationItem {
 	bytes: number;
@@ -130,11 +130,13 @@ export function parseMigrationPlan(raw: unknown): ParsedMigrationPlan {
 
 export function refreshMigrationStats(plan: MigrationPlan): void {
 	const notes = new Set<string>();
+	const localPaths = new Set<string>();
 	let totalRefs = 0;
 	let totalBytes = 0;
 	let doneCount = 0;
 	let failedCount = 0;
 	for (const item of plan.items) {
+		localPaths.add(item.localPath);
 		totalRefs += item.refs.length;
 		if (item.status === 'done') {
 			doneCount += 1;
@@ -154,7 +156,7 @@ export function refreshMigrationStats(plan: MigrationPlan): void {
 		noteCount: notes.size,
 		totalBytes,
 		totalRefs,
-		uniqueFiles: plan.items.length
+		uniqueFiles: localPaths.size
 	};
 }
 

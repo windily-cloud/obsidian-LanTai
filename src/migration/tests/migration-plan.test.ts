@@ -53,7 +53,14 @@ describe('parseMigrationPlan', () => {
 	});
 
 	it('rejects the wrong version', () => {
-		expect(parseMigrationPlan({ ...samplePlan(), version: 2 })).toEqual({
+		expect(parseMigrationPlan({ ...samplePlan(), version: MIGRATION_PLAN_VERSION + 1 })).toEqual({
+			ok: false,
+			reason: 'invalid'
+		});
+	});
+
+	it('rejects the unsafe v1 grouping format', () => {
+		expect(parseMigrationPlan({ ...samplePlan(), version: 1 })).toEqual({
 			ok: false,
 			reason: 'invalid'
 		});
@@ -91,5 +98,27 @@ describe('refreshMigrationStats', () => {
 			totalRefs: 3,
 			uniqueFiles: 2
 		});
+	});
+
+	it('counts unique local paths separately from per-note migration items', () => {
+		const plan = samplePlan({
+			items: [
+				{
+					bytes: 10,
+					localPath: 'a.png',
+					refs: [{ notePath: 'n1.md', source: '![](a.png)', status: 'pending' }],
+					status: 'pending'
+				},
+				{
+					bytes: 10,
+					localPath: 'a.png',
+					refs: [{ notePath: 'n2.md', source: '![](a.png)', status: 'pending' }],
+					status: 'pending'
+				}
+			]
+		});
+		refreshMigrationStats(plan);
+		expect(plan.stats.uniqueFiles).toBe(1);
+		expect(plan.stats.totalBytes).toBe(20);
 	});
 });
