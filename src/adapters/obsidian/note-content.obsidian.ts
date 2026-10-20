@@ -30,6 +30,13 @@ interface ObsidianNoteContentCreateParams {
 	readonly file: TFile;
 }
 
+const BOM = '\uFEFF';
+
+/**
+ * `vault.read()` and the `vault.process()` callback disagree about UTF-8 BOM:
+ * reads may hide it while process still returns it. Every offset in `TextEdit`
+ * therefore belongs to the BOM-less view, and the BOM is restored on write.
+ */
 export class ObsidianNoteContent implements NoteContent {
 	private readonly app: App;
 	private content: string;
@@ -38,7 +45,7 @@ export class ObsidianNoteContent implements NoteContent {
 
 	public constructor(params: ObsidianNoteContentConstructorParams) {
 		this.app = params.app;
-		this.content = params.content;
+		this.content = stripBom(params.content);
 		this.editor = params.editor;
 		this.file = params.file;
 	}
@@ -59,37 +66,50 @@ export class ObsidianNoteContent implements NoteContent {
 		}
 		const next = `${content.slice(0, edit.start)}${edit.replacement}${content.slice(edit.end)}`;
 		if (this.editor) {
+			const editorValue = this.editor.getValue();
+			const offset = editorValue.startsWith(BOM) ? BOM.length : 0;
 			this.editor.replaceRange(
 				edit.replacement,
-				this.editor.offsetToPos(edit.start),
-				this.editor.offsetToPos(edit.end)
+				this.editor.offsetToPos(edit.start + offset),
+				this.editor.offsetToPos(edit.end + offset)
 			);
 			this.content = next;
 			return true;
 		}
 		let applied = false;
 		await this.app.vault.process(this.file, (current) => {
-			if (current.slice(edit.start, edit.end) !== edit.expected) {
+			const hasBom = current.startsWith(BOM);
+			const visible = stripBom(current);
+			if (visible.slice(edit.start, edit.end) !== edit.expected) {
 				return current;
 			}
 			applied = true;
-			const processed = `${current.slice(0, edit.start)}${edit.replacement}${current.slice(edit.end)}`;
+			const processed = `${visible.slice(0, edit.start)}${edit.replacement}${visible.slice(edit.end)}`;
 			this.content = processed;
-			return processed;
+			return hasBom ? `${BOM}${processed}` : processed;
 		});
 		return applied;
 	}
 
 	public getContent(): string {
-		return this.editor?.getValue() ?? this.content;
+		return stripBom(this.editor?.getValue() ?? this.content);
 	}
 
 	public async setContent(content: string): Promise<void> {
-		this.content = content;
+		const visible = stripBom(content);
+		this.content = visible;
 		if (this.editor) {
-			this.editor.setValue(content);
+			const hasBom = content.startsWith(BOM) || this.editor.getValue().startsWith(BOM);
+			this.editor.setValue(hasBom ? `${BOM}${visible}` : visible);
 			return;
 		}
-		await this.app.vault.modify(this.file, content);
+		await this.app.vault.process(this.file, (current) => {
+			const hasBom = content.startsWith(BOM) || current.startsWith(BOM);
+			return hasBom ? `${BOM}${visible}` : visible;
+		});
 	}
+}
+
+function stripBom(content: string): string {
+	return content.startsWith(BOM) ? content.slice(BOM.length) : content;
 }
