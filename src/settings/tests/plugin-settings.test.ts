@@ -47,6 +47,7 @@ describe('PluginSettings', () => {
 		expect(json.activeProfileId).toBeNull();
 		expect(json.profiles).toEqual([]);
 		expect(json.attachmentBase).toBe('note');
+		expect(json.lanTaiApiKeySecretName).toBe('lantai-api-key');
 		// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 		expect(json.localPathTemplate).toBe('${originalName}.${ext}');
 		expect(json.linkStyle).toBe('wiki');
@@ -187,13 +188,16 @@ function buildLanTaiContext(): LanTaiAccountSectionContext {
 		getApiKey(): null | string {
 			return null;
 		},
+		getApiKeySecretName(): string {
+			return 'lantai-api-key';
+		},
 		openUrl(_url: string): void {
 			return undefined;
 		},
 		redisplay(): void {
 			return undefined;
 		},
-		setApiKey(_value: null | string): void {
+		setApiKeySecretName(_name: string): void {
 			return undefined;
 		}
 	};

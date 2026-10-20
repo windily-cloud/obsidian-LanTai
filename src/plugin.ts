@@ -36,7 +36,7 @@ import { t } from './i18n/index.ts';
 import { LanTaiAccountClient } from './lantai/lantai-account.ts';
 import {
 	DEFAULT_LANTAI_BASE_URL,
-	LANTAI_API_KEY_SECRET_NAME
+	resolveLanTaiApiKeySecretName
 } from './lantai/lantai-credentials.ts';
 import { hasLocalImageReference } from './link/has-local-image-reference.ts';
 import { ImageLinkFormatter } from './link/image-link-formatter.ts';
@@ -97,8 +97,12 @@ export class Plugin extends PluginBase {
 		const uploadHistory = new ObsidianUploadHistoryStore({ app: this.app });
 		const vaultImages = new ObsidianVaultImageBrowser({ app: this.app });
 		const transport = new RequestUrlObjectStorageTransport({ requestUrl });
+		const settings = this.settings;
+		function getLanTaiApiKeySecretName(): string {
+			return resolveLanTaiApiKeySecretName(settings.lanTaiApiKeySecretName);
+		}
 		function getLanTaiApiKey(): null | string {
-			return secretStore.getSecret(LANTAI_API_KEY_SECRET_NAME);
+			return secretStore.getSecret(getLanTaiApiKeySecretName());
 		}
 		const createObjectStorage = createObjectStorageFactory(transport, {
 			apiKey: getLanTaiApiKey,
@@ -227,11 +231,12 @@ export class Plugin extends PluginBase {
 				lanTai: {
 					client: new LanTaiAccountClient(transport),
 					getApiKey: getLanTaiApiKey,
+					getApiKeySecretName: getLanTaiApiKeySecretName,
 					openUrl: (url: string): void => {
 						window.open(url);
 					},
-					setApiKey: (value: null | string): void => {
-						secretStore.setSecret(LANTAI_API_KEY_SECRET_NAME, value);
+					setApiKeySecretName: (name: string): void => {
+						this.settings.lanTaiApiKeySecretName = resolveLanTaiApiKeySecretName(name);
 					}
 				},
 				openMigration: (): void => {

@@ -17,12 +17,12 @@ import type { S3SectionContext } from './sections/s3/s3-section.ts';
 import type { StorageProfile } from './sections/s3/storage-profile.ts';
 
 import { t } from '../i18n/index.ts';
+import { LANTAI_API_KEY_SECRET_NAME } from '../lantai/lantai-credentials.ts';
 import {
 	attachTokenInfoButton,
 	previewContext
 } from './helpers/path-template-ui.ts';
 import { StorageProfileRegistry } from './helpers/storage-profile-registry.ts';
-import { displayMigrationSection } from './sections/migration-section.ts';
 import { displayS3SectionBody } from './sections/s3/s3-section.ts';
 // Stub sections (image processing / operations) — re-enable when implemented.
 export type AttachmentBase = 'note' | 'vault';
@@ -30,8 +30,9 @@ export type AttachmentBase = 'note' | 'vault';
 export interface LanTaiAccountTabDeps {
 	readonly client: LanTaiAccountClient;
 	getApiKey(): null | string;
+	getApiKeySecretName(): string;
 	openUrl(url: string): void;
-	setApiKey(value: null | string): void;
+	setApiKeySecretName(name: string): void;
 }
 
 export type LinkStyle = 'markdown' | 'wiki';
@@ -65,6 +66,11 @@ export class PluginSettings {
 	public activeProfileId: null | string = null;
 	public attachmentBase: AttachmentBase = 'note';
 	public deleteSourceAfterUpload = false;
+	/**
+	 * 兰台 API key 在 SecretStorage 中的名字（不是值）。用户在 `SecretComponent` 里选谁就存谁；
+	 * 默认值只用于兼容旧 data.json。
+	 */
+	public lanTaiApiKeySecretName = LANTAI_API_KEY_SECRET_NAME;
 	public linkStyle: LinkStyle = 'wiki';
 	// eslint-disable-next-line no-template-curly-in-string -- name-template token syntax
 	public localPathTemplate = '${originalName}.${ext}';
@@ -91,63 +97,6 @@ export class PluginSettingsTab extends PluginSettingTab {
 		this.registry = new StorageProfileRegistry(params.settings);
 		this.saveSettings = (): Promise<void> => params.saveSettings();
 		this.settings = params.settings;
-	}
-
-	public override display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
-		new Setting(containerEl).setName(t('settings.general')).setHeading();
-		new Setting(containerEl)
-			.setName(t('settings.attachmentBase'))
-			.setDesc(t('settings.attachmentBaseDesc'))
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption('note', t('settings.currentNoteFolder'))
-					.addOption('vault', t('settings.vaultRoot'))
-					.setValue(this.settings.attachmentBase)
-					.onChange((value) => {
-						this.settings.attachmentBase = value as AttachmentBase;
-						this.persistAndRedisplay();
-					});
-			});
-		renderLocalPathTemplate(
-			new Setting(containerEl).setName(t('settings.localPathTemplate')),
-			this.pathResolver,
-			this.settings,
-			(): void => {
-				this.persist();
-			}
-		);
-		new Setting(containerEl)
-			.setName(t('settings.linkStyle'))
-			.setDesc(t('settings.linkStyleDesc'))
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption('markdown', t('settings.markdown'))
-					.addOption('wiki', t('settings.wiki'))
-					.setValue(this.settings.linkStyle)
-					.onChange((value) => {
-						this.settings.linkStyle = value as LinkStyle;
-						this.persist();
-					});
-			});
-
-		new Setting(containerEl).setName(t('settings.s3')).setHeading();
-		displayS3SectionBody(
-			containerEl.createDiv('lantai-s3-settings-host'),
-			this.buildSectionContext()
-		);
-		new Setting(containerEl)
-			.setName(t('settings.deleteSourceAfterUpload'))
-			.setDesc(t('settings.deleteSourceAfterUploadDesc'))
-			.addToggle((toggle) => {
-				toggle.setValue(this.settings.deleteSourceAfterUpload).onChange((value) => {
-					this.settings.deleteSourceAfterUpload = value;
-					this.persist();
-				});
-			});
-		displayMigrationSection(containerEl, this.openMigration, Platform.isMobile);
 	}
 
 	public override getControlValue(key: string): unknown {
@@ -204,14 +153,16 @@ export class PluginSettingsTab extends PluginSettingTab {
 			app: this.app,
 			client: this.lanTai.client,
 			getApiKey: (): null | string => this.lanTai.getApiKey(),
+			getApiKeySecretName: (): string => this.lanTai.getApiKeySecretName(),
 			openUrl: (url: string): void => {
 				this.lanTai.openUrl(url);
 			},
 			redisplay: (): void => {
 				this.refreshTab();
 			},
-			setApiKey: (value: null | string): void => {
-				this.lanTai.setApiKey(value);
+			setApiKeySecretName: (name: string): void => {
+				this.lanTai.setApiKeySecretName(name);
+				this.persist();
 			}
 		};
 	}

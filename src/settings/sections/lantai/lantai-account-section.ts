@@ -5,6 +5,7 @@ import {
 	SecretComponent,
 	Setting
 } from 'obsidian';
+import { noopAsync } from 'obsidian-dev-utils/function';
 
 import type {
 	LanTaiAccountClient,
@@ -20,18 +21,16 @@ import {
 	LANTAI_IMAGE_FORMATS,
 	usagePercent
 } from '../../../lantai/lantai-account.ts';
-import {
-	DEFAULT_LANTAI_BASE_URL,
-	LANTAI_API_KEY_SECRET_NAME
-} from '../../../lantai/lantai-credentials.ts';
+import { DEFAULT_LANTAI_BASE_URL } from '../../../lantai/lantai-credentials.ts';
 
 export interface LanTaiAccountSectionContext {
 	readonly app: App;
 	readonly client: LanTaiAccountClient;
 	getApiKey(): null | string;
+	getApiKeySecretName(): string;
 	openUrl(url: string): void;
 	redisplay(): void;
-	setApiKey(value: null | string): void;
+	setApiKeySecretName(name: string): void;
 }
 
 const FORMAT_LABELS: Readonly<Record<LanTaiImageFormat, string>> = {
@@ -86,8 +85,8 @@ function formatLabel(format: LanTaiImageFormat): string {
 
 function renderApiKey(host: HTMLElement, ctx: LanTaiAccountSectionContext): void {
 	// 与 S3 配置档的 Access Key / Secret Access Key 同一套交互（见 s3-section.ts 的
-	// DisplaySecretField）：SecretComponent 显示已保存的密钥（掩码 + 清除），
-	// 「更改」按钮打开 Obsidian 的密钥编辑器输入新值——输入入口在编辑器里，不是这一行的输入框。
+	// DisplaySecretField）：SecretComponent 只显示当前链接的密钥名，点「Link…」在
+	// Obsidian 的密钥选择器里选已有密钥或新建——插件不在此行渲染输入框。
 	new Setting(host)
 		.setName(t('settings.lantaiApiKey'))
 		.setDesc(apiKeyLink((url) => {
@@ -95,12 +94,64 @@ function renderApiKey(host: HTMLElement, ctx: LanTaiAccountSectionContext): void
 		}))
 		.addComponent((el) =>
 			new SecretComponent(ctx.app, el)
-				.setValue(LANTAI_API_KEY_SECRET_NAME)
-				.onChange(() => {
+				// SecretComponent.onChange 回传的是用户所选密钥的**名字**（不是值），
+				// 必须把它存进 settings；插件只按名字取值，不要求用户输入任何指定名称。
+				.setValue(ctx.getApiKeySecretName())
+				.onChange((name) => {
+					if (name === null || name === '') {
+						return;
+					}
+					ctx.setApiKeySecretName(name);
 					// 值由组件写进 SecretStorage；重新渲染以便用量行反映新凭证。
 					ctx.redisplay();
 				})
 		);
+}
+
+/**
+ * 输出格式 / 压缩质量两个控件共用一个本地快照。
+ *
+ * 保存必须发送**两个字段的完整当前值**：只改一个时不能拿首次渲染的 `summary` 兜另一个，
+ * 否则后一次保存会把前一次的选择覆盖回去（格式改完再拖质量 → 格式被改回旧值）。
+ * 写入串行排队，避免两个 PATCH 乱序落库。
+ */
+function renderImageSettings(
+	host: HTMLElement,
+	ctx: LanTaiAccountSectionContext,
+	apiKey: string,
+	initial: LanTaiImageSettings
+): void {
+	let current: LanTaiImageSettings = { ...initial };
+	let saveQueue: Promise<void> = noopAsync();
+	function persist(settings: LanTaiImageSettings): void {
+		current = settings;
+		saveQueue = saveQueue.then(() => saveImageSettings(ctx, apiKey, settings));
+	}
+
+	new Setting(host)
+		.setName(t('settings.lantaiImageSettings'))
+		.setDesc(t('settings.lantaiImageSettingsDesc'))
+		.addDropdown((dropdown) => {
+			for (const format of LANTAI_IMAGE_FORMATS) {
+				dropdown.addOption(format, formatLabel(format));
+			}
+			dropdown.setValue(current.format).onChange((value) => {
+				persist({ format: value as LanTaiImageFormat, quality: current.quality });
+			});
+		});
+
+	const qualitySetting = new Setting(host)
+		.setName(t('settings.lantaiQuality'))
+		.setDesc(String(current.quality));
+	qualitySetting.addSlider((slider) => {
+		slider.setLimits(MIN_QUALITY, MAX_QUALITY, 1).setValue(current.quality);
+		slider.sliderEl.addEventListener('input', () => {
+			qualitySetting.setDesc(String(slider.getValue()));
+		});
+		slider.sliderEl.addEventListener('change', () => {
+			persist({ format: current.format, quality: slider.getValue() });
+		});
+	});
 }
 
 function renderSummary(
@@ -124,32 +175,7 @@ function renderSummary(
 		);
 	}
 
-	new Setting(host)
-		.setName(t('settings.lantaiImageSettings'))
-		.setDesc(t('settings.lantaiImageSettingsDesc'))
-		.addDropdown((dropdown) => {
-			for (const format of LANTAI_IMAGE_FORMATS) {
-				dropdown.addOption(format, formatLabel(format));
-			}
-			dropdown.setValue(summary.imageProcessingSettings.format).onChange((value) => {
-				runAsync(saveImageSettings(ctx, apiKey, {
-					format: value as LanTaiImageFormat,
-					quality: summary.imageProcessingSettings.quality
-				}));
-			});
-		});
-	new Setting(host)
-		.setName(t('settings.lantaiQuality'))
-		.setDesc(String(summary.imageProcessingSettings.quality))
-		.addSlider((slider) => {
-			slider.setLimits(MIN_QUALITY, MAX_QUALITY, 1).setValue(summary.imageProcessingSettings.quality);
-			slider.sliderEl.addEventListener('change', () => {
-				runAsync(saveImageSettings(ctx, apiKey, {
-					format: summary.imageProcessingSettings.format,
-					quality: slider.getValue()
-				}));
-			});
-		});
+	renderImageSettings(host, ctx, apiKey, summary.imageProcessingSettings);
 
 	const actions = new Setting(host);
 	actions.addButton((button) => {
@@ -159,8 +185,9 @@ function renderSummary(
 	});
 	actions.addButton((button) => {
 		button.setButtonText(t('settings.lantaiSignOut')).onClick(() => {
-			// 仅清除本机凭证；服务端那把 key 仍需在网页端撤销（设计文档决策 7）。
-			ctx.setApiKey(null);
+			// 只解绑本机引用，不写空 SecretStorage 值：用户选的密钥可能与其他插件共享。
+			// 服务端那把 key 仍需在网页端撤销（设计文档决策 7）。
+			ctx.setApiKeySecretName('');
 			new Notice(t('notices.lantaiSignedOut'));
 			ctx.redisplay();
 		});
@@ -210,13 +237,7 @@ function renderUsageBar(
 		});
 }
 
-/** 触发即忘的异步动作：失败只记日志，不再向上抛（设置页没有更合适的失败出口）。 */
-function runAsync(task: Promise<unknown>): void {
-	task.catch((error: unknown) => {
-		console.error('LanTai account action failed', error);
-	});
-}
-
+/** 保存图片处理设置；失败用 Notice 报错，不向上抛（串行队列继续处理后续写入）。 */
 async function saveImageSettings(
 	ctx: LanTaiAccountSectionContext,
 	apiKey: string,
