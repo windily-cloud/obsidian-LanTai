@@ -1,13 +1,30 @@
 import type { ImageRef } from './image-ref.ts';
 
 const DISPLAY_MATH_DELIMITER = '$$';
+const ESCAPE_SEQUENCE_LENGTH = 2;
 const FOOTNOTE_DEFINITION_RE = /^ {0,3}\[\^[^\]\n]+\]:/;
 const FOOTNOTE_CONTINUATION_RE = /^(?:\t| {4,})/;
 const INLINE_FOOTNOTE_OPEN = '^[';
 const MAX_FENCE_INDENT = 3;
-const MD_IMAGE_RE = /!\[(?<alt>[^\]]*)\]\(\s*<?(?<target>[^)\s>]+)>?(?:\s+(?<title>"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g;
+const MD_IMAGE_OPEN_RE = /!\[(?<alt>[^\]]*)\]\(/g;
 const MIN_FENCE_LENGTH = 3;
 const WIKI_IMAGE_RE = /!\[\[(?<target>[^\]|]+)(?:\|(?<suffix>[^\]]*))?\]\]/g;
+
+interface AngleTarget {
+	readonly next: number;
+	readonly target: string;
+}
+
+interface MarkdownImageBody {
+	readonly end: number;
+	readonly markdownTitle: null | string;
+	readonly target: string;
+}
+
+interface MarkdownImageTitle {
+	readonly end: number;
+	readonly title: null | string;
+}
 
 interface MatchCandidate {
 	index: number;
@@ -29,25 +46,29 @@ export class ImageLinkParser {
 	public parse(markdown: string): ImageRef[] {
 		const protectedRanges = collectProtectedRanges(markdown);
 		const candidates: MatchCandidate[] = [];
-		for (const match of markdown.matchAll(MD_IMAGE_RE)) {
-			const groups = match.groups;
-			const alt = groups?.['alt'] ?? '';
-			const target = groups?.['target'];
-			const source = match[0];
-			if (!target || !source || isInsideProtectedRange(protectedRanges, match.index)) {
+		let consumedUntil = 0;
+		for (const match of markdown.matchAll(MD_IMAGE_OPEN_RE)) {
+			if (match.index < consumedUntil) {
 				continue;
 			}
+			const groups = match.groups;
+			const alt = groups?.['alt'] ?? '';
+			const body = readMarkdownImageBody(markdown, match.index + match[0].length);
+			if (!body || isInsideProtectedRange(protectedRanges, match.index)) {
+				continue;
+			}
+			consumedUntil = body.end;
 			candidates.push({
 				index: match.index,
 				ref: {
 					decorations: splitDecorations(alt),
-					end: match.index + source.length,
-					isRemote: /^https?:\/\//i.test(target),
+					end: body.end,
+					isRemote: /^https?:\/\//i.test(body.target),
 					kind: 'markdown',
-					markdownTitle: groups['title'] ?? null,
-					source,
+					markdownTitle: body.markdownTitle,
+					source: markdown.slice(match.index, body.end),
 					start: match.index,
-					target
+					target: body.target
 				}
 			});
 		}
@@ -101,6 +122,47 @@ function collectProtectedRanges(markdown: string): ProtectedRange[] {
 	return ranges;
 }
 
+function findParenEnd(markdown: string, start: number): number {
+	let depth = 0;
+	for (let index = start; index < markdown.length; index += 1) {
+		const char = markdown[index];
+		if (char === '\\') {
+			index += 1;
+			continue;
+		}
+		if (char === '\n') {
+			return -1;
+		}
+		if (char === '(') {
+			depth += 1;
+		} else if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				return index;
+			}
+		}
+	}
+	return -1;
+}
+
+function findQuotedEnd(markdown: string, start: number): number {
+	const quote = markdown[start];
+	for (let index = start + 1; index < markdown.length; index += 1) {
+		const char = markdown[index];
+		if (char === '\\') {
+			index += 1;
+			continue;
+		}
+		if (char === '\n') {
+			return -1;
+		}
+		if (char === quote) {
+			return index;
+		}
+	}
+	return -1;
+}
+
 function isClosingFence(line: string, char: string, minLength: number): boolean {
 	let index = 0;
 	while (index < MAX_FENCE_INDENT && line[index] === ' ') {
@@ -129,6 +191,29 @@ function isMathWhitespace(char: string | undefined): boolean {
 function lineEndIndex(markdown: string, from: number): number {
 	const newline = markdown.indexOf('\n', from);
 	return newline === -1 ? markdown.length : newline;
+}
+
+function readAngleTarget(
+	markdown: string,
+	start: number
+): AngleTarget | null {
+	let index = start + 1;
+	while (index < markdown.length) {
+		const char = markdown[index];
+		if (char === '\\') {
+			index += ESCAPE_SEQUENCE_LENGTH;
+			continue;
+		}
+		if (char === '\n' || char === '\r') {
+			return null;
+		}
+		if (char === '>') {
+			const target = markdown.slice(start + 1, index);
+			return target === '' ? null : { next: index + 1, target };
+		}
+		index += 1;
+	}
+	return null;
 }
 
 function readDisplayMath(markdown: string, start: number): null | ProtectedRange {
@@ -274,6 +359,61 @@ function readInlineMath(markdown: string, start: number): null | ProtectedRange 
 	return null;
 }
 
+function readMarkdownImageBody(markdown: string, start: number): MarkdownImageBody | null {
+	const targetStart = skipWhitespace(markdown, start);
+	if (targetStart >= markdown.length) {
+		return null;
+	}
+	if (markdown[targetStart] === '<') {
+		const angle = readAngleTarget(markdown, targetStart);
+		if (!angle) {
+			return null;
+		}
+		const title = readTitleAndClose(markdown, angle.next);
+		if (!title) {
+			return null;
+		}
+		return { end: title.end, markdownTitle: title.title, target: angle.target };
+	}
+	let index = targetStart;
+	let depth = 0;
+	while (index < markdown.length) {
+		const char = markdown[index];
+		if (char === '\\') {
+			index += ESCAPE_SEQUENCE_LENGTH;
+			continue;
+		}
+		if (char === '\n' || char === '\r') {
+			return null;
+		}
+		if (char === ' ' || char === '\t') {
+			const title = readTitleAndClose(markdown, index);
+			if (title) {
+				const target = markdown.slice(targetStart, index).trimEnd();
+				return target === '' ? null : { end: title.end, markdownTitle: title.title, target };
+			}
+			index += 1;
+			continue;
+		}
+		if (char === '(') {
+			depth += 1;
+			index += 1;
+			continue;
+		}
+		if (char === ')') {
+			if (depth === 0) {
+				const target = markdown.slice(targetStart, index);
+				return target === '' ? null : { end: index + 1, markdownTitle: null, target };
+			}
+			depth -= 1;
+			index += 1;
+			continue;
+		}
+		index += 1;
+	}
+	return null;
+}
+
 function readOpeningFence(markdown: string, start: number): null | OpeningFence {
 	let index = start;
 	let indent = 0;
@@ -302,6 +442,49 @@ function readOpeningFence(markdown: string, start: number): null | OpeningFence 
 		char,
 		length
 	};
+}
+
+function readTitleAndClose(markdown: string, from: number): MarkdownImageTitle | null {
+	const start = skipWhitespace(markdown, from);
+	const char = markdown[start];
+	if (char === ')') {
+		return { end: start + 1, title: null };
+	}
+	if (char === '"' || char === '\'') {
+		const closing = findQuotedEnd(markdown, start);
+		if (closing === -1) {
+			return null;
+		}
+		const title = markdown.slice(start, closing + 1);
+		const afterTitle = skipWhitespace(markdown, closing + 1);
+		return markdown[afterTitle] === ')'
+			? { end: afterTitle + 1, title }
+			: null;
+	}
+	if (char === '(') {
+		const closing = findParenEnd(markdown, start);
+		if (closing === -1) {
+			return null;
+		}
+		const title = markdown.slice(start, closing + 1);
+		const afterTitle = skipWhitespace(markdown, closing + 1);
+		return markdown[afterTitle] === ')'
+			? { end: afterTitle + 1, title }
+			: null;
+	}
+	return null;
+}
+
+function skipWhitespace(markdown: string, start: number): number {
+	let index = start;
+	while (index < markdown.length) {
+		const char = markdown[index];
+		if (char !== ' ' && char !== '\t' && char !== '\n' && char !== '\r') {
+			break;
+		}
+		index += 1;
+	}
+	return index;
 }
 
 function splitDecorations(value: string): string[] {
